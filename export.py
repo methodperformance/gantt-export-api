@@ -18,13 +18,13 @@ TASK_ROWS = (
 
 def get_template_b64():
     """Load template from file, return as base64"""
-    template_path = os.path.join(os.path.dirname(__file__), '..', 'gantt_template.xlsx')
+    template_path = os.path.join(os.path.dirname(__file__), 'gantt_template.xlsx')
     with open(template_path, 'rb') as f:
         return base64.b64encode(f.read()).decode()
 
 def generate_excel(project):
     """Inject project actions into template, return bytes"""
-    template_path = os.path.join(os.path.dirname(__file__), '..', 'gantt_template.xlsx')
+    template_path = os.path.join(os.path.dirname(__file__), 'gantt_template.xlsx')
     wb = load_workbook(template_path)
     ws = wb['Gantt']
 
