@@ -1,0 +1,3504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Method Performance Batam — Project Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+:root {
+  /* Schneider Electric look — clean white + signature green */
+  --bg:           #F4F6F8;
+  --surface:      #FFFFFF;
+  --surface-2:    #F4F6F8;
+  --surface-3:    #E8EDF1;
+  --border:       #DDE3E9;
+  --border-soft:  #E8ECF0;
+  --text:         #14171F;
+  --text-dim:     #5B6470;
+  --text-faint:   #8E97A2;
+  --primary:      #3DCD58;     /* Schneider green */
+  --primary-dark: #2BA546;
+  --primary-soft: rgba(61, 205, 88, 0.12);
+
+  --not-started:  #8E97A2;     /* neutral gray */
+  --in-progress:  #2D8FFF;     /* clear blue */
+  --late:         #E03131;     /* clear red */
+  --completed:    #3DCD58;     /* Schneider green */
+  --pending:      #8E97A2;
+
+  --shadow-card:  0 1px 2px rgba(20, 23, 31, 0.04), 0 2px 8px rgba(20, 23, 31, 0.04);
+  --shadow-hover: 0 2px 4px rgba(20, 23, 31, 0.06), 0 8px 24px rgba(20, 23, 31, 0.08);
+
+  --radius:       8px;
+  --radius-sm:    4px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  padding: 20px;
+  min-height: 100vh;
+}
+
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Card shadow tweaks for light theme */
+.topbar, .kpi-card, .chart-card, .table-card, .editor-card, .evidence-card,
+.detail-header, .filter-bar, .project-card, .modal {
+  box-shadow: var(--shadow-card);
+}
+.project-card:hover { box-shadow: var(--shadow-hover); }
+.btn { background: var(--primary); }
+.btn:hover { background: var(--primary-dark); opacity: 1; }
+.btn-danger-solid {
+  background: var(--late);
+  color: #FFFFFF;
+}
+.btn-danger-solid:hover { background: #B92929; opacity: 1; }
+.btn-ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--surface-3); border-color: var(--border); opacity: 1; }
+.btn-outline { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn-outline:hover { background: var(--surface-2); }
+.btn-danger {
+  background: rgba(224, 49, 49, 0.1);
+  color: var(--late);
+  border: 1px solid rgba(224, 49, 49, 0.25);
+}
+.btn-danger:hover { background: rgba(224, 49, 49, 0.18); opacity: 1; }
+.btn-icon { color: var(--text-faint); }
+.btn-icon:hover { background: var(--surface-2); color: var(--late); }
+.modal-overlay { background: rgba(20, 23, 31, 0.4); }
+.donut-num { color: var(--text); }
+.tag-plant { background: rgba(61, 205, 88, 0.12); color: var(--primary-dark); }
+.tag-line  { background: rgba(45, 143, 255, 0.12); color: #1F6EC8; }
+.leader-avatar { background: var(--primary-soft); color: var(--primary-dark); border: 1px solid rgba(61, 205, 88, 0.3); }
+.status-badge.completed { background: rgba(61, 205, 88, 0.15); color: var(--primary-dark); }
+.req-tag.mandatory { background: rgba(224, 49, 49, 0.12); color: var(--late); }
+.req-tag.optional  { background: var(--surface-3); color: var(--text-faint); }
+.evidence-row.done {
+  background: rgba(61, 205, 88, 0.06);
+  border-color: rgba(61, 205, 88, 0.25);
+}
+.evidence-check.done {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.progress-bar { background: var(--surface-3); }
+.progress-bar-fill { background: linear-gradient(90deg, var(--in-progress), var(--primary)); }
+.mini-progress { background: var(--surface-3); }
+.mini-progress-fill { background: var(--primary); }
+.kpi-card[data-status="completion"]  { color: var(--primary-dark); }
+.editor-table input:focus, .editor-table select:focus,
+.filter-input:focus, .filter-select:focus,
+.form-input:focus, .form-select:focus { border-color: var(--primary); }
+.path-box-icon { color: var(--primary-dark); }
+.next-steps li::before { background: var(--primary-soft); color: var(--primary-dark); }
+.success-box {
+  background: rgba(61, 205, 88, 0.08);
+  border-color: rgba(61, 205, 88, 0.3);
+}
+.success-title { color: var(--primary-dark); }
+
+/* ========== TOP BAR ========== */
+/* ====== WORK INSTRUCTIONS ====== */
+.instruction-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 22px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.instruction-banner {
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  padding: 12px 22px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.instruction-banner .badge-icon { font-size: 16px; }
+.instruction-header {
+  padding: 18px 22px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.instruction-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.instruction-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.instruction-open {
+  font-size: 12px;
+  color: var(--primary-dark);
+  text-decoration: none;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.instruction-open:hover {
+  background: rgba(61,205,88,0.10);
+}
+.instruction-frame-wrap {
+  background: #fafafa;
+  padding: 8px;
+}
+.instruction-frame {
+  width: 100%;
+  height: 680px;
+  border: 0;
+  display: block;
+  border-radius: 6px;
+  background: white;
+}
+@media (max-width: 720px) {
+  .instruction-frame { height: 540px; }
+  .instruction-header { flex-direction: column; align-items: stretch; }
+}
+
+/* ====== AUTH & USER MGMT ====== */
+.auth-shell {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+}
+.auth-brand {
+  display: inline-block;
+  background: var(--primary);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 8px 14px;
+  border-radius: 4px;
+  margin-bottom: 22px;
+}
+.auth-card h1 {
+  margin: 0 0 6px 0;
+  font-size: 22px;
+  color: var(--text);
+  text-align: center;
+}
+.auth-tagline {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--text-faint);
+  text-align: center;
+  margin-bottom: 10px;
+}
+.btn-primary-lg {
+  font-size: 14px;
+  padding: 12px 20px;
+  font-weight: 600;
+}
+.auth-card { text-align: center; }
+.auth-card .form-field { text-align: left; }
+.auth-card .form-actions { justify-content: center; }
+.auth-card .auth-sub {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-bottom: 22px;
+  line-height: 1.5;
+}
+.auth-card .auth-note {
+  color: var(--text-faint);
+  font-size: 11px;
+  text-align: center;
+  margin-top: 18px;
+  line-height: 1.5;
+}
+.user-menu-wrap { position: relative; }
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.user-chip:hover { background: var(--surface-3); }
+.user-chip-avatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+}
+.user-chip-name { color: var(--text); font-weight: 600; }
+.user-chip-role { color: var(--text-faint); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.user-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.10);
+  min-width: 200px;
+  z-index: 200;
+  padding: 6px;
+}
+.user-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.user-menu button:hover { background: var(--surface-2); }
+.user-menu button.danger { color: var(--late); }
+.user-menu hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 4px 0;
+}
+.role-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.role-badge.admin { background: rgba(231,76,60,0.12); color: var(--late); }
+.role-badge.user  { background: rgba(74,144,226,0.15); color: var(--in-progress); }
+.users-table { width: 100%; border-collapse: collapse; }
+.users-table th, .users-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.users-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.users-table tbody tr:last-child td { border-bottom: none; }
+.users-table .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 18px;
+}
+.topbar-left {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.brand {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.brand-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.04em;
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.topbar-meta { text-align: right; }
+.topbar-meta-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+}
+.topbar-meta-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* ========== BREADCRUMB / BACK ========== */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 18px;
+}
+.breadcrumb a {
+  color: var(--primary-dark);
+  cursor: pointer;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.breadcrumb a:hover { background: rgba(61,205,88,0.10); text-decoration: none; }
+.breadcrumb-sep { color: var(--text-faint); }
+.breadcrumb-current { color: var(--text); font-weight: 600; }
+
+/* ========== BUTTONS ========== */
+.btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.15s, transform 0.05s;
+}
+.btn:hover { opacity: 0.88; }
+.btn:active { transform: scale(0.98); }
+.btn-ghost {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.btn-ghost:hover { background: var(--surface-3); opacity: 1; }
+.btn-outline {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover { background: var(--surface-2); opacity: 1; }
+.btn-danger {
+  background: rgba(231, 76, 60, 0.18);
+  color: var(--late);
+}
+.btn-danger:hover { background: rgba(231, 76, 60, 0.28); opacity: 1; }
+.btn-icon {
+  background: transparent;
+  color: var(--text-faint);
+  padding: 4px 8px;
+  font-size: 16px;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+}
+.btn-icon:hover { color: var(--late); background: var(--surface-2); }
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+
+/* ========== PROJECT LIST VIEW ========== */
+.list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.list-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.list-title-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.list-stats {
+  display: flex;
+  gap: 24px;
+  align-items: baseline;
+  margin-top: 6px;
+}
+.list-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.list-stat-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.filter-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: center;
+}
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.filter-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.filter-input,
+.filter-select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.filter-input:focus,
+.filter-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.filter-select option { background: var(--surface); }
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
+}
+
+.project-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.project-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+.project-card-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.tag-plant { background: rgba(74,144,226,0.18); color: #6BAEDB; }
+.tag-line { background: rgba(180,167,214,0.18); color: var(--not-started); }
+.tag-excel { background: rgba(46, 204, 113, 0.15); color: #1F7F3A; }
+.project-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+}
+.project-card-leader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.leader-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(74,144,226,0.3);
+}
+.project-card-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+.project-card-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+.project-card-stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 13px;
+  margin-top: 2px;
+}
+.mini-progress {
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.mini-progress-fill {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.3s;
+}
+.project-card-status {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.project-card-status.late {
+  background: var(--late);
+  animation: pulse 1.8s ease-out infinite;
+}
+.project-card-status.active { background: var(--in-progress); }
+.project-card-status.done   { background: var(--completed); }
+.project-card-status.draft  { background: var(--text-faint); }
+.project-card-status.closed { background: var(--primary); }
+.project-card-status.pending-closure { background: #F0AD2E; }
+
+.tag-closed  { background: rgba(255,255,255,0.25); color: #fff; }
+.tag-pending { background: rgba(240, 173, 46, 0.18); color: #B9790E; }
+.tag-progress { background: rgba(45, 143, 255, 0.15); color: var(--in-progress); }
+
+.project-closed {
+  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%) !important;
+  border-color: var(--primary-dark) !important;
+}
+.project-closed .project-card-title,
+.project-closed .project-card-leader,
+.project-closed .project-card-leader span,
+.project-closed .project-card-stat-value,
+.project-closed .project-card-stat-label {
+  color: #fff !important;
+}
+.project-closed .project-card-leader span:last-child { color: rgba(255,255,255,0.75) !important; }
+.project-closed .project-card-stat-label { color: rgba(255,255,255,0.7) !important; }
+.project-closed .tag-plant,
+.project-closed .tag-line,
+.project-closed .tag-excel { background: rgba(255,255,255,0.2); color: #fff; }
+.project-closed .leader-avatar { background: rgba(255,255,255,0.25); color: #fff; border-color: rgba(255,255,255,0.4); }
+.project-closed .project-card-stats { border-top-color: rgba(255,255,255,0.25); }
+.project-closed .mini-progress { background: rgba(255,255,255,0.25); }
+.project-closed .mini-progress-fill { background: #fff !important; }
+.project-closed .project-card-status { display: none; }
+
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(231, 76, 60, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+}
+
+.empty-projects {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-faint);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+.empty-projects-title {
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+/* ========== MODAL ========== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+  animation: fadeIn 0.15s;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px 26px;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.modal-close {
+  background: transparent;
+  color: var(--text-faint);
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+.modal-close:hover { background: var(--surface-2); color: var(--text); }
+
+.report-modal { max-width: 760px; }
+.report-doc { font-size: 13px; }
+.report-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: 14px; margin-bottom: 18px;
+}
+.report-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); }
+.report-title { font-size: 20px; font-weight: 700; margin-top: 2px; color: var(--text); }
+.report-meta { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.report-status-pill {
+  padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  background: var(--surface-2); color: var(--text-dim); white-space: nowrap;
+}
+.report-status-pill.closed { background: rgba(61,205,88,0.15); color: var(--primary-dark); }
+.report-status-pill.pending-closure { background: rgba(240,173,46,0.18); color: #92620A; }
+.report-status-pill.late { background: rgba(224,49,49,0.12); color: var(--late); }
+.report-kpis { display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-bottom: 22px; }
+.report-kpi { text-align: center; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 4px; }
+.report-kpi-num { font-size: 19px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.report-kpi-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin-top: 2px; }
+.report-section { margin-bottom: 20px; }
+.report-section-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+.report-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.report-table th, .report-table td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
+.report-table th { background: var(--surface-2); font-weight: 600; }
+.report-priority-chip { padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: var(--surface-2); }
+.report-priority-chip.pr-urgent { background: rgba(224,49,49,0.15); color: var(--late); }
+.report-priority-chip.pr-important { background: rgba(240,173,46,0.18); color: #92620A; }
+.report-priority-chip.pr-medium { background: rgba(45,143,255,0.15); color: var(--in-progress); }
+.report-priority-chip.pr-low { background: var(--surface-3); color: var(--text-faint); }
+.report-issue-list, .report-suggestion-list { padding-left: 18px; font-size: 12.5px; line-height: 1.7; color: var(--text-dim); }
+.report-late-tag { background: var(--late); color: #fff; font-size: 9px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+.report-empty { color: var(--text-faint); font-size: 12.5px; font-style: italic; }
+.report-evidence-row { display: flex; gap: 24px; font-size: 13px; color: var(--text-dim); }
+
+.form-field {
+  margin-bottom: 14px;
+}
+.form-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.form-label .req { color: var(--late); margin-left: 2px; }
+.form-input,
+.form-select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+.form-input:focus,
+.form-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.form-help {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 4px;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.success-box {
+  background: rgba(46, 204, 113, 0.1);
+  border: 1px solid rgba(46, 204, 113, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.success-title {
+  font-weight: 600;
+  color: var(--completed);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.path-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text);
+  margin: 10px 0;
+  word-break: break-all;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.path-box-icon {
+  color: var(--primary);
+  font-size: 14px;
+}
+.next-steps {
+  list-style: none;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.next-steps li {
+  padding: 4px 0;
+  display: flex;
+  gap: 8px;
+}
+.next-steps li::before {
+  content: counter(step);
+  counter-increment: step;
+  background: var(--primary-soft);
+  color: var(--primary);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+}
+.next-steps { counter-reset: step; }
+
+/* ========== PROJECT DETAIL VIEW ========== */
+.detail-header {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 18px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: center;
+}
+.detail-header-closed {
+  background: linear-gradient(180deg, rgba(61, 205, 88, 0.07) 0%, var(--surface) 70%);
+  border-color: rgba(61, 205, 88, 0.4);
+}
+.closure-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  margin-bottom: 14px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.closure-banner-closed {
+  background: rgba(61, 205, 88, 0.12);
+  border: 1px solid rgba(61, 205, 88, 0.35);
+  color: var(--primary-dark);
+}
+.closure-banner-pending {
+  background: rgba(240, 173, 46, 0.12);
+  border: 1px solid rgba(240, 173, 46, 0.4);
+  color: #92620A;
+}
+.detail-header-info { min-width: 0; }
+.detail-header-tags {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.detail-header-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-bottom: 6px;
+}
+.detail-header-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+.detail-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Evidence checklist */
+.evidence-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.section-progress {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.evidence-list {
+  display: grid;
+  gap: 6px;
+}
+.evidence-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.12s;
+}
+.evidence-row:hover { border-color: var(--border); }
+.evidence-row.done {
+  background: rgba(46, 204, 113, 0.05);
+  border-color: rgba(46, 204, 113, 0.2);
+}
+.evidence-check {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.evidence-check.done {
+  background: var(--completed);
+  border-color: var(--completed);
+}
+.evidence-check.done::after {
+  content: '✓';
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+.evidence-name {
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.evidence-name.done { color: var(--text-dim); }
+.req-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.req-tag.mandatory { background: rgba(231, 76, 60, 0.18); color: var(--late); }
+.req-tag.optional  { background: var(--surface-3); color: var(--text-faint); }
+.evidence-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: 'JetBrains Mono', monospace;
+}
+.progress-bar {
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--completed));
+  transition: width 0.4s;
+}
+
+/* ========== KPI / CHARTS (reused from v1, polished) ========== */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card::after {
+  content: '';
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: currentColor;
+  opacity: 0.7;
+}
+.kpi-card[data-status="total"]       { color: var(--text-dim); }
+.kpi-card[data-status="not-started"] { color: var(--not-started); }
+.kpi-card[data-status="in-progress"] { color: var(--in-progress); }
+.kpi-card[data-status="completed"]   { color: var(--completed); }
+.kpi-card[data-status="late"]        { color: var(--late); }
+.kpi-card[data-status="completion"]  { color: var(--primary); }
+.kpi-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.kpi-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: currentColor;
+}
+.kpi-card[data-status="total"] .kpi-value { color: var(--text); }
+.kpi-card.has-alert::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 7px;
+  height: 7px;
+  background: var(--late);
+  border-radius: 50%;
+  animation: pulse 1.8s ease-out infinite;
+}
+
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.4fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px 20px;
+}
+.chart-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.chart-canvas-wrap {
+  position: relative;
+  height: 200px;
+}
+.donut-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -55%);
+  text-align: center;
+  pointer-events: none;
+}
+.donut-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+}
+.donut-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-top: 6px;
+}
+.status-legend {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+/* Tables */
+.tables-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.table-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.table-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.title-dot { width: 8px; height: 8px; border-radius: 50%; }
+.count-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  background: var(--surface-2);
+  padding: 3px 8px;
+  border-radius: 10px;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+.task-row {
+  display: grid;
+  grid-template-columns: 1fr 64px 46px 76px;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-soft);
+  align-items: center;
+  font-size: 13px;
+}
+.task-row:last-child { border-bottom: none; }
+.task-name { font-weight: 500; color: var(--text); }
+.task-meta { color: var(--text-faint); font-size: 11px; margin-top: 2px; }
+.task-date { color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.task-pct { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-dim); text-align: right; }
+.days-tag { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; }
+.days-tag.late { color: var(--late); }
+.days-tag.soon { color: var(--in-progress); }
+.empty-state {
+  color: var(--text-faint);
+  font-style: italic;
+  text-align: center;
+  padding: 28px 0;
+  font-size: 12px;
+}
+
+/* Editor */
+.editor-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.editor-title { font-size: 13px; font-weight: 600; }
+.editor-actions { display: flex; gap: 8px; }
+.editor-scroll { max-height: 340px; overflow: auto; }
+.editor-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.editor-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+.editor-table th {
+  text-align: left;
+  padding: 8px 6px;
+  color: var(--text-faint);
+  font-weight: 500;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--border);
+}
+.editor-table td { padding: 4px; border-bottom: 1px solid var(--border-soft); }
+.editor-table input,
+.editor-table select {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.editor-table input:focus,
+.editor-table select:focus {
+  outline: none;
+  background: var(--bg);
+  border-color: var(--primary);
+}
+.editor-table input[type="date"],
+.editor-table input[type="number"] {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+.editor-table select { cursor: pointer; }
+.editor-table select option { background: var(--surface); }
+.status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.status-badge.not-started { background: rgba(180,167,214,0.18); color: var(--not-started); }
+.status-badge.in-progress { background: rgba(74,144,226,0.18);  color: var(--in-progress); }
+.status-badge.late        { background: rgba(231,76,60,0.18);   color: var(--late); }
+.status-badge.completed   { background: rgba(46,204,113,0.18);  color: var(--completed); }
+
+.editor-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.editor-table th.sortable:hover { color: var(--text); }
+.editor-table th.sortable .sort-arrow { margin-left: 3px; opacity: 0.5; }
+.editor-table th.sortable.sort-active .sort-arrow { opacity: 1; color: var(--primary); }
+.editor-table tr.filter-row th {
+  padding: 4px 6px 8px;
+  position: sticky;
+  top: 26px;
+  background: var(--surface);
+  z-index: 1;
+}
+.editor-table .filter-input,
+.editor-table .filter-select {
+  width: 100%;
+  font-size: 11px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+.editor-table .filter-select { cursor: pointer; }
+.editor-table .filter-select option { background: var(--surface); }
+
+/* Footer */
+.footer {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 11px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  letter-spacing: 0.04em;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .kpi-row { grid-template-columns: repeat(3, 1fr); }
+  .charts-row { grid-template-columns: 1fr; }
+  .tables-row { grid-template-columns: 1fr; }
+  .filter-bar { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  body { padding: 12px; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .topbar { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .filter-bar { grid-template-columns: 1fr; }
+  .detail-header { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== TOP BAR ===================== -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="brand">Method Performance Batam</span>
+    <span class="brand-sub">PROJECT HUB</span>
+  </div>
+  <div class="topbar-right" id="topbar-right">
+    <!-- populated by renderTopBar() -->
+  </div>
+</div>
+
+<div id="main-content"></div>
+
+<div class="footer">
+  LOCAL-FIRST · DATA STAYS IN THIS BROWSER · CLICK "EXPORT" TO BACK UP
+</div>
+
+<script>
+// ===================== CONFIG =====================
+const SHAREPOINT_HOST = 'https://schneiderelectric-my.sharepoint.com';
+const ONEDRIVE_ROOT = '/personal/sesa352121_se_com/Documents/GON KERJOAN/08 METHOD COMMON/02. PROJECT';
+const STORAGE_KEY = 'method-batam-projects-v2';
+
+// Plant codes for the new-project dropdown
+const PLANTS = ['PEL', 'PEM', 'BLP', 'BATAM'];
+
+// Embedded Project_Management_Gantt_Template.xlsx (base64-encoded)
+const EXCEL_TEMPLATE_B64 = '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';
+
+// 9-item evidence checklist
+const EVIDENCE_ITEMS = [
+  { name: 'Qualification plan',                        required: true  },
+  { name: 'OWS & JBS Update',                          required: true  },
+  { name: 'PFMEA Update',                              required: false },
+  { name: 'Project execution picture',                 required: true  },
+  { name: 'MFMEA',                                     required: false },
+  { name: 'MTM Update',                                required: false },
+  { name: 'Training operator & technician evidence',   required: true  },
+  { name: 'MPH Update',                                required: false },
+  { name: 'Qualification result',                      required: true  },
+  { name: 'Others',                                    required: false }
+];
+
+const PRIORITIES = ['Urgent', 'Important', 'Medium', 'Low'];
+const BUCKETS    = ['Process', 'Machine', 'Quality', 'MPH', 'Production'];
+const STATUSES   = ['Not Started', 'In Progress', 'Late', 'Completed'];
+const STATUS_COLORS = {
+  'Not Started': '#8E97A2',
+  'In Progress': '#2D8FFF',
+  'Late':        '#E03131',
+  'Completed':   '#3DCD58'
+};
+
+// ===================== AUTH =====================
+// Passwords are baked into the file — same passwords for every deployment.
+//   Admin: methodadmin2026
+//   User:  methoduser2026
+// Anyone with browser dev tools can see these constants and brute-force them.
+// This is a UI gate (keep curious passers-by out), not real security.
+const BUILTIN_ADMIN_HASH = '9ca095c0a66998b7fb8dae755b9712f09b7096a9f3905b034502f88a8693a491';
+const BUILTIN_USER_HASH  = '43368af9b9a2417157c37837214345cf0dc3c8ab475691963ccc86c2ab670e79';
+
+const SESSION_KEY = 'method-batam-session-v1';
+const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;  // 8 hours
+
+async function hashPassword(role, password) {
+  // SHA-256 of "role:password" — role acts as salt.
+  const text = (role || '').toLowerCase() + ':' + (password || '');
+  const buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function getSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (!s) return null;
+    if (Date.parse(s.expiresAt) < Date.now()) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return s;
+  } catch (e) { return null; }
+}
+function setSession(role) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({
+    role,
+    loginAt:   new Date().toISOString(),
+    expiresAt: new Date(Date.now() + SESSION_DURATION_MS).toISOString()
+  }));
+}
+function clearSession() { localStorage.removeItem(SESSION_KEY); }
+
+function currentRole() {
+  const s = getSession();
+  return s ? s.role : null;
+}
+function isAdmin() { return currentRole() === 'admin'; }
+function isLoggedIn() { return Boolean(currentRole()); }
+
+// One-time cleanup: remove old keys from earlier prototypes
+try {
+  localStorage.removeItem('method-batam-auth-v1');
+  localStorage.removeItem('method-batam-users-v1');
+} catch (e) {}
+
+// ===================== SUPABASE (centralized, cross-device sync) =====================
+const SUPABASE_URL = 'https://qpxebopyqwilvqpgdnwm.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_nJXAUqE4LPCLqQrzdUMNtw_cXptjXzf';
+const STORE_TABLE = 'project_hub_store';
+const STORE_ROW_ID = 'main';
+const EVIDENCE_BUCKET = 'evidence';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Guard so a remote realtime update doesn't immediately get echoed back to Supabase.
+let isApplyingRemoteUpdate = false;
+// Guard so we don't start rendering before the first load completes.
+let appReady = false;
+
+// ===================== STATE =====================
+let store = { projects: [] };
+let view = {
+  page: 'list',
+  currentProjectId: null,
+  filters: { plant: '', line: '', leader: '', projectStatus: 'On Progress' },
+  search: ''
+};
+let charts = { status: null, priority: null, bucket: null };
+
+function loadLocalFallback() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) { try { return JSON.parse(raw); } catch (e) {} }
+  return { projects: [] };
+}
+
+// Loads the shared store from Supabase. If no row exists yet (very first run),
+// seed it from whatever is in this browser's localStorage (one-time migration),
+// so existing local data isn't lost when going centralized.
+async function loadStoreFromSupabase() {
+  try {
+    const { data, error } = await sb
+      .from(STORE_TABLE)
+      .select('data')
+      .eq('id', STORE_ROW_ID)
+      .maybeSingle();
+    if (error) throw error;
+    if (data && data.data) return data.data;
+
+    const local = loadLocalFallback();
+    await sb.from(STORE_TABLE).upsert({
+      id: STORE_ROW_ID,
+      data: local,
+      updated_at: new Date().toISOString()
+    });
+    return local;
+  } catch (e) {
+    console.error('Supabase load failed, falling back to local data:', e);
+    alert('Could not connect to the shared database. Showing offline/local data only — changes will NOT sync to other devices until the connection is restored.');
+    return loadLocalFallback();
+  }
+}
+
+async function saveStore() {
+  // Keep a local cache too, so the app still works offline / loads instantly.
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  localStorage.setItem(STORAGE_KEY + '-updated', new Date().toISOString());
+
+  if (isApplyingRemoteUpdate) return; // this save IS the remote update, don't bounce it back
+
+  try {
+    const { error } = await sb.from(STORE_TABLE).upsert({
+      id: STORE_ROW_ID,
+      data: store,
+      updated_at: new Date().toISOString()
+    });
+    if (error) throw error;
+  } catch (e) {
+    console.error('Supabase save failed:', e);
+    alert('Could not sync this change to the shared database. It is saved in THIS browser only — check your internet connection.');
+  }
+}
+
+function subscribeRealtime() {
+  sb.channel('project_hub_store_changes')
+    .on('postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: STORE_TABLE, filter: `id=eq.${STORE_ROW_ID}` },
+      payload => {
+        const incoming = payload.new && payload.new.data;
+        if (!incoming) return;
+        isApplyingRemoteUpdate = true;
+        store = incoming;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+        localStorage.setItem(STORAGE_KEY + '-updated', new Date().toISOString());
+        if (appReady) render();
+        isApplyingRemoteUpdate = false;
+      })
+    .subscribe();
+}
+
+async function initApp() {
+  store = await loadStoreFromSupabase();
+  subscribeRealtime();
+  appReady = true;
+  render();
+}
+
+// ===================== UTILS =====================
+function uuid() { return 'p-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, m => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[m]));
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function fmtDateShort(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
+}
+function daysBetween(d1, d2) {
+  return Math.round((new Date(d2) - new Date(d1)) / 86400000);
+}
+function fmtSyncTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const m = Math.round(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + ' hour' + (h === 1 ? '' : 's') + ' ago';
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function initials(name) {
+  return String(name || '?')
+    .split(/\s+/).filter(Boolean).slice(0, 2)
+    .map(p => p[0].toUpperCase()).join('');
+}
+
+// Plant folders — user-provided direct OneDrive sharing links.
+// (Each plant folder was created manually in SharePoint and these are its share URLs.)
+const PLANT_FOLDERS = {
+  'PEL':   'https://schneiderelectric-my.sharepoint.com/:f:/r/personal/sesa352121_se_com/Documents/GON%20KERJOAN/08%20METHOD%20COMMON/02.%20PROJECT/PEL?csf=1&web=1&e=emGztn',
+  'PEM':   'https://schneiderelectric-my.sharepoint.com/:f:/r/personal/sesa352121_se_com/Documents/GON%20KERJOAN/08%20METHOD%20COMMON/02.%20PROJECT/PEM?csf=1&web=1&e=XqVlmc',
+  'BATAM': 'https://schneiderelectric-my.sharepoint.com/:f:/r/personal/sesa352121_se_com/Documents/GON%20KERJOAN/08%20METHOD%20COMMON/02.%20PROJECT/BATAM?csf=1&web=1&e=mjXysE',
+  'BLP':   'https://schneiderelectric-my.sharepoint.com/:f:/r/personal/sesa352121_se_com/Documents/GON%20KERJOAN/08%20METHOD%20COMMON/02.%20PROJECT/BLP?csf=1&web=1&e=CXuOiN'
+};
+
+// All "Open Project Folder" buttons route to the plant folder.
+// The user navigates to their specific project sub-folder inside it.
+function buildPlantFolderUrl(plant) {
+  return PLANT_FOLDERS[plant] || buildRootFolderUrl();
+}
+function buildProjectFolderUrl(plant /*, leader, name */) {
+  return buildPlantFolderUrl(plant);
+}
+// Root navigation (the "02. PROJECT folder" button in the project list header)
+function encodeOneDrivePath(path) {
+  return encodeURIComponent(path).replace(/_/g, '%5F').replace(/\./g, '%2E');
+}
+function buildRootFolderUrl() {
+  return `${SHAREPOINT_HOST}/my?csf=1&web=1&id=${encodeOneDrivePath(ONEDRIVE_ROOT)}`;
+}
+
+// ===================== STATUS / KPI COMPUTATION =====================
+function actionStatus(action) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const end = new Date(action.end);
+  const pct = Number(action.percent) || 0;
+  if (pct >= 100) return 'Completed';
+  if (end < today) return 'Late';
+  if (pct > 0) return 'In Progress';
+  return 'Not Started';
+}
+function projectKPIs(project) {
+  const actions = project.actions || [];
+  const counts = { 'Not Started': 0, 'In Progress': 0, 'Late': 0, 'Completed': 0 };
+  let totalPct = 0;
+  actions.forEach(a => { counts[actionStatus(a)]++; totalPct += Number(a.percent) || 0; });
+  return {
+    total: actions.length,
+    counts,
+    completion: actions.length ? totalPct / actions.length : 0,
+    tasksLeft: actions.length - counts['Completed']
+  };
+}
+function evidenceProgress(project) {
+  const ev = project.evidence || {};
+  const mandatory = EVIDENCE_ITEMS.filter(e => e.required);
+  const mandatoryDone = mandatory.filter(e => ev[e.name]?.done).length;
+  const optionalDone  = EVIDENCE_ITEMS.filter(e => !e.required && ev[e.name]?.done).length;
+  const totalDone = mandatoryDone + optionalDone;
+  return {
+    mandatory: { done: mandatoryDone, total: mandatory.length },
+    optional:  { done: optionalDone,  total: EVIDENCE_ITEMS.length - mandatory.length },
+    total:     { done: totalDone,     total: EVIDENCE_ITEMS.length },
+    pctMandatory: mandatory.length ? mandatoryDone / mandatory.length : 0,
+    pctTotal: totalDone / EVIDENCE_ITEMS.length
+  };
+}
+function projectStatus(project) {
+  if (project.closure?.status === 'closed') return 'closed';
+  if (project.closure?.status === 'pending') return 'pending-closure';
+  const k = projectKPIs(project);
+  const e = evidenceProgress(project);
+  if (k.counts.Late > 0) return 'late';
+  if (k.completion >= 100 && e.pctMandatory >= 1) return 'done';
+  if (k.total === 0 && e.total.done === 0) return 'draft';
+  return 'active';
+}
+
+// Returns true if project can be submitted for closing
+function canSubmitClose(project) {
+  const actions = project.actions || [];
+  if (actions.length === 0) return false;
+  const allComplete = actions.every(a => (Number(a.percent) || 0) >= 100);
+  if (!allComplete) return false;
+  const ev = project.evidence || {};
+  const mandatory = EVIDENCE_ITEMS.filter(e => e.required);
+  const allMandatoryUploaded = mandatory.every(e => ev[e.name]?.done);
+  return allMandatoryUploaded;
+}
+
+function projectStatusLabel(project) {
+  const closure = project.closure;
+  if (closure?.status === 'closed') return 'Closed';
+  if (closure?.status === 'pending') return 'Pending Closure';
+  return 'On Progress';
+}
+
+// ===================== RENDER: TOP BAR =====================
+function renderTopBar() {
+  const el = document.getElementById('topbar-right');
+  const role = currentRole();
+  const today = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  if (!role) {
+    // Guest view (setup / login screens)
+    el.innerHTML = `
+      <div class="topbar-meta">
+        <div class="topbar-meta-label">Today</div>
+        <div class="topbar-meta-value">${today}</div>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="topbar-meta">
+      <div class="topbar-meta-label">Today</div>
+      <div class="topbar-meta-value">${today}</div>
+    </div>
+    <div class="topbar-meta">
+      <div class="topbar-meta-label">Projects Tracked</div>
+      <div class="topbar-meta-value">${store.projects.length}</div>
+    </div>
+    <div class="user-menu-wrap">
+      <div class="user-chip" onclick="toggleUserMenu(event)">
+        <span class="role-badge ${role}">${role}</span>
+        <span style="color:var(--text-faint); font-size:10px;">▼</span>
+      </div>
+      <div class="user-menu" id="user-menu" style="display:none;">
+        <button onclick="goToList(); closeUserMenu();">📊 Dashboard</button>
+        <button onclick="goToInstructions(); closeUserMenu();">📖 Work Instructions</button>
+        <hr>
+        <button class="danger" onclick="signOut();">↩ Sign out</button>
+      </div>
+    </div>`;
+}
+
+function toggleUserMenu(event) {
+  if (event) event.stopPropagation();
+  const m = document.getElementById('user-menu');
+  if (!m) return;
+  const isOpen = m.style.display === 'block';
+  m.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) setTimeout(() => document.addEventListener('click', closeUserMenu, { once: true }), 0);
+}
+function closeUserMenu() {
+  const m = document.getElementById('user-menu');
+  if (m) m.style.display = 'none';
+}
+
+
+// ===================== RENDER: PROJECT LIST =====================
+function renderProjectList() {
+  const filtered = store.projects.filter(p => {
+    if (view.filters.plant  && p.plant  !== view.filters.plant)  return false;
+    if (view.filters.line   && p.line   !== view.filters.line)   return false;
+    if (view.filters.leader && p.leader !== view.filters.leader) return false;
+    const pStatusLabel = projectStatusLabel(p);
+    if (view.filters.projectStatus && view.filters.projectStatus !== 'All Status') {
+      if (view.filters.projectStatus === 'On Progress') {
+        if (pStatusLabel !== 'On Progress' && pStatusLabel !== 'Pending Closure') return false;
+      } else if (pStatusLabel !== view.filters.projectStatus) {
+        return false;
+      }
+    }
+    if (view.search) {
+      const s = view.search.toLowerCase();
+      if (!(p.name + ' ' + p.leader + ' ' + p.plant + ' ' + p.line).toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
+
+  const uniquePlants  = [...new Set(store.projects.map(p => p.plant ).filter(Boolean))].sort();
+  const uniqueLines   = [...new Set(store.projects.map(p => p.line  ).filter(Boolean))].sort();
+  const uniqueLeaders = [...new Set(store.projects.map(p => p.leader).filter(Boolean))].sort();
+
+  const statusCounts = { active: 0, late: 0, done: 0, draft: 0 };
+  store.projects.forEach(p => { statusCounts[projectStatus(p)]++; });
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="list-header">
+      <div>
+        <div class="list-title">Projects</div>
+        <div class="list-stats">
+          <div class="list-stat"><span class="list-stat-num">${store.projects.length}</span> total</div>
+          <div class="list-stat"><span class="list-stat-num" style="color:var(--in-progress)">${statusCounts.active}</span> active</div>
+          <div class="list-stat"><span class="list-stat-num" style="color:var(--late)">${statusCounts.late}</span> late</div>
+          <div class="list-stat"><span class="list-stat-num" style="color:var(--completed)">${statusCounts.done}</span> done</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-ghost" onclick="goToInstructions()">📖 Work Instructions</button>
+        <button class="btn btn-ghost" onclick="openSharePoint(buildRootFolderUrl())">Open Project Folder ↗</button>
+        <button class="btn btn-ghost" onclick="exportStore()">Export backup</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">Import</button>
+        <input type="file" id="import-file" accept=".json" style="display:none" onchange="importStore(this)">
+        <button class="btn" onclick="openNewProjectModal()">+ New Project</button>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-field">
+        <label class="filter-label">Search</label>
+        <input class="filter-input" placeholder="Search by name, leader, plant…"
+               value="${esc(view.search)}" oninput="onSearchInput(this.value)">
+      </div>
+      <div class="filter-field">
+        <label class="filter-label">Plant</label>
+        <select class="filter-select" onchange="onFilterChange('plant', this.value)">
+          <option value="">All plants</option>
+          ${uniquePlants.map(p => `<option value="${esc(p)}" ${view.filters.plant === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-label">Line</label>
+        <select class="filter-select" onchange="onFilterChange('line', this.value)">
+          <option value="">All lines</option>
+          ${uniqueLines.map(l => `<option value="${esc(l)}" ${view.filters.line === l ? 'selected' : ''}>${esc(l)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-label">Project Leader</label>
+        <select class="filter-select" onchange="onFilterChange('leader', this.value)">
+          <option value="">All leaders</option>
+          ${uniqueLeaders.map(l => `<option value="${esc(l)}" ${view.filters.leader === l ? 'selected' : ''}>${esc(l)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-label">Project Status</label>
+        <select class="filter-select" onchange="onFilterChange('projectStatus', this.value)">
+          ${['On Progress', 'Closed', 'All Status'].map(s => `<option value="${s}" ${view.filters.projectStatus === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="filter-field" style="justify-content:end;">
+        <label class="filter-label">&nbsp;</label>
+        <button class="btn btn-outline" onclick="clearFilters()">Clear filters</button>
+      </div>
+    </div>
+
+    ${filtered.length === 0 ? `
+      <div class="empty-projects">
+        <div class="empty-projects-title">${store.projects.length === 0 ? 'No projects yet' : 'No projects match your filters'}</div>
+        <div>${store.projects.length === 0
+          ? 'Click "+ New Project" to create your first one.'
+          : 'Try clearing filters or adjusting your search.'}</div>
+      </div>
+    ` : `
+      <div class="projects-grid">
+        ${filtered.map(p => projectCardHtml(p)).join('')}
+      </div>
+    `}
+  `;
+}
+
+function projectCardHtml(p) {
+  const k = projectKPIs(p);
+  const e = evidenceProgress(p);
+  const status = projectStatus(p);
+  const created = fmtDate(p.createdAt);
+  const isClosed = status === 'closed';
+  const isPending = status === 'pending-closure';
+  return `
+    <div class="project-card ${isClosed ? 'project-closed' : ''}" onclick="openProject('${p.id}')">
+      <div class="project-card-status ${status}" title="${status}"></div>
+      <div class="project-card-tags">
+        <span class="tag tag-plant">${esc(p.plant)}</span>
+        <span class="tag tag-line">${esc(p.line)}</span>
+        ${p.excelFile ? '<span class="tag tag-excel">📊 Excel</span>' : ''}
+        ${isClosed ? '<span class="tag tag-closed">✓ Closed</span>' : ''}
+        ${isPending ? '<span class="tag tag-pending">⏳ Pending Closure</span>' : ''}
+        ${!isClosed && !isPending ? '<span class="tag tag-progress">● On Progress</span>' : ''}
+      </div>
+      <div class="project-card-title">${esc(p.name)}</div>
+      <div class="project-card-leader">
+        <div class="leader-avatar">${initials(p.leader)}</div>
+        <span>${esc(p.leader)}</span>
+        <span style="color:var(--text-faint); margin-left:auto; font-size:11px;">${created}</span>
+      </div>
+      <div class="project-card-stats">
+        <div>
+          <div class="project-card-stat-label">Actions</div>
+          <div class="project-card-stat-value">${k.completion.toFixed(0)}% <span style="color:var(--text-faint); font-size:11px;">· ${k.total} items</span></div>
+          <div class="mini-progress"><div class="mini-progress-fill" style="width:${k.completion}%; ${isClosed ? 'background:var(--completed);' : ''}"></div></div>
+        </div>
+        <div>
+          <div class="project-card-stat-label">Evidence (mandatory)</div>
+          <div class="project-card-stat-value">${e.mandatory.done}/${e.mandatory.total}</div>
+          <div class="mini-progress"><div class="mini-progress-fill" style="width:${e.pctMandatory*100}%; background:${e.pctMandatory>=1?'var(--completed)':'var(--primary)'}"></div></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ===================== RENDER: PROJECT DETAIL =====================
+function renderProjectDetail() {
+  const p = store.projects.find(x => x.id === view.currentProjectId);
+  if (!p) { view.page = 'list'; render(); return; }
+  const folderUrl = buildProjectFolderUrl(p.plant, p.leader, p.name);
+  const e = evidenceProgress(p);
+  const pStatus = projectStatus(p);
+  const isClosed = pStatus === 'closed';
+  const isPending = pStatus === 'pending-closure';
+  const eligible = canSubmitClose(p);
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="breadcrumb">
+      <a onclick="goToList()">← All Projects</a>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-current">${esc(p.name)}</span>
+    </div>
+
+    ${isClosed ? `
+      <div class="closure-banner closure-banner-closed">
+        <span>✅ This project is <strong>CLOSED</strong>${p.closure?.closedAt ? ' · ' + fmtDate(p.closure.closedAt) : ''}${p.closure?.closedBy ? ' · approved by ' + esc(p.closure.closedBy) : ''}</span>
+      </div>
+    ` : isPending ? `
+      <div class="closure-banner closure-banner-pending">
+        <span>⏳ Close request submitted${p.closure?.submittedAt ? ' on ' + fmtDate(p.closure.submittedAt) : ''}${p.closure?.submittedBy ? ' by ' + esc(p.closure.submittedBy) : ''} — waiting for Admin approval.</span>
+        ${isAdmin() ? `
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-sm" style="background:var(--primary);" onclick="approveClosing('${p.id}')">✓ Approve Closing</button>
+            <button class="btn btn-ghost btn-sm" onclick="rejectClosing('${p.id}')">Reject</button>
+          </div>
+        ` : ''}
+      </div>
+    ` : ''}
+
+    <div class="detail-header ${isClosed ? 'detail-header-closed' : ''}">
+      <div class="detail-header-info">
+        <div class="detail-header-tags">
+          <span class="tag tag-plant">${esc(p.plant)}</span>
+          <span class="tag tag-line">${esc(p.line)}</span>
+          ${isClosed ? '<span class="tag tag-closed">✓ Closed</span>' : ''}
+        </div>
+        <div class="detail-header-title">${esc(p.name)}</div>
+        <div class="detail-header-meta">
+          <span>👤 ${esc(p.leader)}</span>
+          <span>📅 Created ${fmtDate(p.createdAt)}</span>
+          <span style="font-family:'JetBrains Mono', monospace; color:var(--text-faint);">${esc(p.plant)} / ${esc(p.leader)} - ${esc(p.name)}</span>
+        </div>
+      </div>
+      <div class="detail-header-actions">
+        <button class="btn btn-ghost" onclick="generateReport('${p.id}')">📋 Generate Report</button>
+        ${p.excelFile ? `
+          <button class="btn" onclick="openExcel('${p.id}')" title="${esc(p.excelFile.name)} · ${formatBytes(p.excelFile.size)}">📊 Open Excel</button>
+          <input type="file" id="excel-replace-${p.id}" style="display:none" accept=".xlsx,.xls,.xlsm,.xlsb,.csv" onchange="uploadExcel('${p.id}', this)">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('excel-replace-${p.id}').click()" title="Replace Excel file">✏️</button>
+          <button class="btn btn-icon" onclick="removeExcel('${p.id}')" title="Remove Excel">×</button>
+        ` : `
+          <input type="file" id="excel-upload-${p.id}" style="display:none" accept=".xlsx,.xls,.xlsm,.xlsb,.csv" onchange="uploadExcel('${p.id}', this)">
+          <button class="btn" onclick="document.getElementById('excel-upload-${p.id}').click()">📊 Upload Excel</button>
+        `}
+        <button class="btn btn-outline" onclick="openSharePoint('${esc(folderUrl)}')">Open Project Folder ↗</button>
+        <button class="btn btn-ghost" onclick="downloadTemplate('${p.id}')">Download template</button>
+        ${!isClosed && !isPending ? `
+          <button class="btn btn-sm" style="background:${eligible ? 'var(--primary)' : 'var(--surface-3)'}; color:${eligible ? '#fff' : 'var(--text-faint)'}; ${eligible ? '' : 'cursor:not-allowed;'}"
+            ${eligible ? `onclick="submitCloseRequest('${p.id}')"` : `onclick="showCloseRequirements('${p.id}')"`}>
+            🔒 Submit Close Request
+          </button>
+        ` : ''}
+        ${isAdmin() ? `<button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">Delete</button>` : ''}
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card" data-status="total"><div class="kpi-label">Total Actions</div><div class="kpi-value" id="kpi-total">—</div></div>
+      <div class="kpi-card" data-status="not-started"><div class="kpi-label">Not Started</div><div class="kpi-value" id="kpi-not-started">—</div></div>
+      <div class="kpi-card" data-status="in-progress"><div class="kpi-label">In Progress</div><div class="kpi-value" id="kpi-in-progress">—</div></div>
+      <div class="kpi-card" data-status="completed"><div class="kpi-label">Completed</div><div class="kpi-value" id="kpi-completed">—</div></div>
+      <div class="kpi-card" data-status="late" id="kpi-late-card"><div class="kpi-label">Late</div><div class="kpi-value" id="kpi-late">—</div></div>
+      <div class="kpi-card" data-status="completion"><div class="kpi-label">% Completion</div><div class="kpi-value" id="kpi-completion">—</div></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-card-title">Status</div>
+        <div class="chart-canvas-wrap">
+          <canvas id="status-chart"></canvas>
+          <div class="donut-center">
+            <div class="donut-num" id="donut-num">—</div>
+            <div class="donut-label">Tasks Left</div>
+          </div>
+        </div>
+        <div class="status-legend" id="status-legend"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">Priority</div>
+        <div class="chart-canvas-wrap"><canvas id="priority-chart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">Project Category</div>
+        <div class="chart-canvas-wrap"><canvas id="bucket-chart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="tables-row">
+      <div class="table-card">
+        <div class="table-title">
+          <span class="title-dot" style="background:var(--late)"></span>
+          Late <span class="count-pill" id="late-count">0</span>
+        </div>
+        <div id="late-list"></div>
+      </div>
+      <div class="table-card">
+        <div class="table-title">
+          <span class="title-dot" style="background:var(--in-progress)"></span>
+          Due in next 14 days <span class="count-pill" id="upcoming-count">0</span>
+        </div>
+        <div id="upcoming-list"></div>
+      </div>
+    </div>
+
+    <div class="editor-card">
+      <div class="editor-header">
+        <div>
+          <div class="editor-title">Action Items</div>
+          ${p.lastSyncedAt ? `<div style="font-size:11px; color:var(--text-faint); margin-top:3px;">Synced from Excel · ${fmtSyncTime(p.lastSyncedAt)} · ${p.lastSyncCount || 0} item(s)</div>` : ''}
+        </div>
+        <div class="editor-actions">
+          <button class="btn" onclick="addAction()">+ Add action</button>
+          <button class="btn btn-ghost" onclick="exportToExcel()">📊 Export to Excel</button>
+        </div>
+      </div>
+      <div class="editor-scroll">
+        <table class="editor-table">
+          <thead>
+            <tr>
+              ${actionColumnHeaderHtml('name',     'Task',          '18%')}
+              ${actionColumnHeaderHtml('owner',    'Owner (PIC)',   '10%')}
+              ${actionColumnHeaderHtml('bucket',   'Category',      '8%')}
+              ${actionColumnHeaderHtml('priority', 'Priority',      '8%')}
+              ${actionColumnHeaderHtml('start',    'Start',         '8%')}
+              ${actionColumnHeaderHtml('end',      'End',           '8%')}
+              ${actionColumnHeaderHtml('week',     'Target Week',   '7%')}
+              ${actionColumnHeaderHtml('percent',  '% Done',        '6%')}
+              ${actionColumnHeaderHtml('status',   'Status',        '8%')}
+              ${actionColumnHeaderHtml('update',   'Project Update','16%')}
+              <th style="width: 3%"></th>
+            </tr>
+            <tr class="filter-row">
+              <th><input class="filter-input" type="text" placeholder="Filter…" value="${esc(actionTableState.filters.name||'')}" oninput="filterActionTable('name', this.value)"></th>
+              <th><input class="filter-input" type="text" placeholder="Filter…" value="${esc(actionTableState.filters.owner||'')}" oninput="filterActionTable('owner', this.value)"></th>
+              <th><select class="filter-select" onchange="filterActionTable('bucket', this.value)">
+                <option value="">All</option>${BUCKETS.map(b=>`<option value="${b}" ${actionTableState.filters.bucket===b?'selected':''}>${b}</option>`).join('')}
+              </select></th>
+              <th><select class="filter-select" onchange="filterActionTable('priority', this.value)">
+                <option value="">All</option>${PRIORITIES.map(pr=>`<option value="${pr}" ${actionTableState.filters.priority===pr?'selected':''}>${pr}</option>`).join('')}
+              </select></th>
+              <th><input class="filter-input" type="date" value="${actionTableState.filters.start||''}" oninput="filterActionTable('start', this.value)"></th>
+              <th><input class="filter-input" type="date" value="${actionTableState.filters.end||''}" oninput="filterActionTable('end', this.value)"></th>
+              <th><input class="filter-input" type="text" placeholder="e.g. Wk23" value="${esc(actionTableState.filters.week||'')}" oninput="filterActionTable('week', this.value)"></th>
+              <th></th>
+              <th><select class="filter-select" onchange="filterActionTable('status', this.value)">
+                <option value="">All</option>${['Not Started','In Progress','Late','Completed'].map(s=>`<option value="${s}" ${actionTableState.filters.status===s?'selected':''}>${s}</option>`).join('')}
+              </select></th>
+              <th><input class="filter-input" type="text" placeholder="Filter…" value="${esc(actionTableState.filters.update||'')}" oninput="filterActionTable('update', this.value)"></th>
+              <th>${(actionTableState.sortCol || Object.values(actionTableState.filters).some(v=>v)) ? `<button class="btn btn-icon" onclick="resetActionTableState()" title="Clear filters & sort">⟲</button>` : ''}</th>
+            </tr>
+          </thead>
+          <tbody id="action-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="evidence-card">
+      <div class="section-header">
+        <div class="section-title">Project Evidence</div>
+        <div style="display:flex; gap:14px; align-items:center;">
+          <div class="section-progress">
+            ${e.mandatory.done}/${e.mandatory.total} mandatory · ${e.total.done}/${e.total.total} total
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="exportEvidenceFiles('${p.id}')" title="Save all uploaded files to a folder of your choice">
+            📤 Export files to folder
+          </button>
+        </div>
+      </div>
+      <div class="evidence-list">
+        ${EVIDENCE_ITEMS.map(item => evidenceRowHtml(p, item)).join('')}
+      </div>
+      <div class="progress-bar"><div class="progress-bar-fill" style="width:${e.pctTotal*100}%"></div></div>
+    </div>
+  `;
+
+  renderKPIs(p);
+  renderStatusChart(p);
+  renderPriorityChart(p);
+  renderBucketChart(p);
+  renderLateList(p);
+  renderUpcomingList(p);
+  renderActionEditor(p);
+}
+
+function evidenceRowHtml(p, item) {
+  const ev = p.evidence[item.name] || {};
+  const hasFile = Boolean(ev.fileName);
+  // Stable ID for the file input (sanitize the evidence name)
+  const inputId = `ev-${p.id}-${item.name.replace(/[^a-z0-9]/gi, '_')}`;
+  const escName = esc(item.name);
+  return `
+    <div class="evidence-row ${hasFile ? 'done' : ''}">
+      <div class="evidence-check ${hasFile ? 'done' : ''}"></div>
+      <div class="evidence-name ${hasFile ? 'done' : ''}">
+        ${escName}
+        <span class="req-tag ${item.required ? 'mandatory' : 'optional'}">${item.required ? 'Mandatory' : 'Optional'}</span>
+      </div>
+      <div class="evidence-meta">
+        ${hasFile
+          ? `<span style="color:var(--text);">${esc(ev.fileName)}</span> · ${formatBytes(ev.fileSize)} · ${fmtDateShort(ev.completedAt)}`
+          : 'No file yet'}
+      </div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        ${hasFile ? `
+          <button class="btn btn-ghost btn-sm" onclick="previewEvidenceFile('${p.id}', \`${escName}\`)" title="Open file">👁</button>
+          <button class="btn btn-icon" onclick="removeEvidenceFile('${p.id}', \`${escName}\`)" title="Remove file">×</button>
+        ` : `
+          <input type="file" id="${inputId}" style="display:none" onchange="uploadEvidence('${p.id}', \`${escName}\`, this)">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('${inputId}').click()">📎 Upload</button>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+// ===================== KPI / CHARTS / TABLES =====================
+function renderKPIs(p) {
+  const k = projectKPIs(p);
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('kpi-total',       k.total);
+  set('kpi-not-started', k.counts['Not Started']);
+  set('kpi-in-progress', k.counts['In Progress']);
+  set('kpi-completed',   k.counts['Completed']);
+  set('kpi-late',        k.counts['Late']);
+  set('kpi-completion',  k.completion.toFixed(0) + '%');
+  const lc = document.getElementById('kpi-late-card');
+  if (lc) lc.classList.toggle('has-alert', k.counts['Late'] > 0);
+  set('donut-num', k.tasksLeft);
+}
+
+function chartTooltip() {
+  return {
+    backgroundColor: '#14171F', borderColor: '#14171F', borderWidth: 0,
+    titleColor: '#FFFFFF', bodyColor: '#E8ECF0',
+    titleFont: { family: 'Inter', size: 12, weight: '600' },
+    bodyFont: { family: 'Inter', size: 12 },
+    padding: 10, cornerRadius: 4, boxPadding: 6
+  };
+}
+
+function renderStatusChart(p) {
+  const k = projectKPIs(p);
+  const data = STATUSES.map(s => k.counts[s]);
+  const colors = STATUSES.map(s => STATUS_COLORS[s]);
+  if (charts.status) charts.status.destroy();
+  const ctx = document.getElementById('status-chart');
+  if (!ctx) return;
+  charts.status = new Chart(ctx.getContext('2d'), {
+    type: 'doughnut',
+    data: { labels: STATUSES, datasets: [{ data, backgroundColor: colors, borderColor: '#FFFFFF', borderWidth: 2 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '70%',
+      plugins: { legend: { display: false }, tooltip: chartTooltip() }
+    }
+  });
+  const legend = document.getElementById('status-legend');
+  if (legend) {
+    legend.innerHTML = STATUSES.map(s => `
+      <div class="legend-item"><span class="legend-dot" style="background:${STATUS_COLORS[s]}"></span>${s}</div>
+    `).join('');
+  }
+}
+
+function renderStackedBar(p, canvasId, categories, getCategoryFn) {
+  const datasets = STATUSES.map(s => ({
+    label: s,
+    data: categories.map(cat => p.actions.filter(t => getCategoryFn(t) === cat && actionStatus(t) === s).length),
+    backgroundColor: STATUS_COLORS[s],
+    borderRadius: 2, borderSkipped: false
+  }));
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return null;
+  return new Chart(ctx.getContext('2d'), {
+    type: 'bar',
+    data: { labels: categories, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { stacked: true, ticks: { color: '#5B6470', font: { family: 'Inter', size: 11 } }, grid: { display: false }, border: { color: '#DDE3E9' } },
+        y: { stacked: true, beginAtZero: true, ticks: { color: '#5B6470', font: { family: 'JetBrains Mono', size: 11 }, stepSize: 1, precision: 0 }, grid: { color: '#E8ECF0', tickColor: 'transparent' }, border: { display: false } }
+      },
+      plugins: { legend: { display: false }, tooltip: chartTooltip() }
+    }
+  });
+}
+function renderPriorityChart(p) {
+  if (charts.priority) charts.priority.destroy();
+  charts.priority = renderStackedBar(p, 'priority-chart', PRIORITIES, t => t.priority);
+}
+function renderBucketChart(p) {
+  if (charts.bucket) charts.bucket.destroy();
+  charts.bucket = renderStackedBar(p, 'bucket-chart', BUCKETS, t => t.bucket);
+}
+
+function renderLateList(p) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const late = p.actions.filter(t => actionStatus(t) === 'Late')
+    .map(t => ({ ...t, daysLate: daysBetween(t.end, today) }))
+    .sort((a, b) => b.daysLate - a.daysLate);
+  document.getElementById('late-count').textContent = late.length;
+  document.getElementById('late-list').innerHTML = late.length === 0
+    ? '<div class="empty-state">No late tasks — keep it up!</div>'
+    : late.map(t => `
+      <div class="task-row">
+        <div>
+          <div class="task-name">${esc(t.name)}</div>
+          <div class="task-meta">${esc(t.owner)} · ${esc(t.bucket)}</div>
+        </div>
+        <div class="task-date">${fmtDateShort(t.end)}</div>
+        <div class="task-pct">${t.percent}%</div>
+        <div class="days-tag late">${t.daysLate}d late</div>
+      </div>
+    `).join('');
+}
+function renderUpcomingList(p) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const limit = new Date(today.getTime() + 14 * 86400000);
+  const upcoming = p.actions.filter(t => {
+    const s = actionStatus(t);
+    if (s === 'Completed' || s === 'Late') return false;
+    const end = new Date(t.end);
+    return end >= today && end <= limit;
+  })
+    .map(t => ({ ...t, daysToGo: daysBetween(today, t.end) }))
+    .sort((a, b) => a.daysToGo - b.daysToGo);
+  document.getElementById('upcoming-count').textContent = upcoming.length;
+  document.getElementById('upcoming-list').innerHTML = upcoming.length === 0
+    ? '<div class="empty-state">Nothing due in the next 14 days</div>'
+    : upcoming.map(t => `
+      <div class="task-row">
+        <div>
+          <div class="task-name">${esc(t.name)}</div>
+          <div class="task-meta">${esc(t.owner)} · ${esc(t.bucket)}</div>
+        </div>
+        <div class="task-date">${fmtDateShort(t.end)}</div>
+        <div class="task-pct">${t.percent}%</div>
+        <div class="days-tag soon">${t.daysToGo}d to go</div>
+      </div>
+    `).join('');
+}
+
+// ===================== ACTION ITEMS TABLE: FILTER & SORT (per-device UI state, not synced) =====================
+let actionTableState = { sortCol: null, sortDir: 'asc', filters: {} };
+
+function resetActionTableState() {
+  actionTableState = { sortCol: null, sortDir: 'asc', filters: {} };
+  renderProjectDetail();
+}
+
+function actionColumnHeaderHtml(col, label, width) {
+  const isActive = actionTableState.sortCol === col;
+  const arrow = isActive ? (actionTableState.sortDir === 'asc' ? '▲' : '▼') : '▲▼';
+  return `<th class="sortable ${isActive ? 'sort-active' : ''}" style="width:${width}" onclick="sortActionTable('${col}')">${label}<span class="sort-arrow">${arrow}</span></th>`;
+}
+
+function sortActionTable(col) {
+  if (actionTableState.sortCol === col) {
+    actionTableState.sortDir = actionTableState.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    actionTableState.sortCol = col;
+    actionTableState.sortDir = 'asc';
+  }
+  const p = currentProject(); if (p) renderActionEditor(p);
+}
+
+function filterActionTable(col, value) {
+  actionTableState.filters[col] = value;
+  const p = currentProject(); if (p) renderActionEditor(p);
+}
+
+// ISO-ish week-of-year label, e.g. "Wk23". Based on the action's "end" date.
+function weekLabelForDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  const onejan = new Date(d.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((d - onejan) / 86400000) + 1;
+  const weekNum = Math.ceil((dayOfYear + onejan.getDay()) / 7);
+  return `Wk${weekNum}`;
+}
+
+function actionSortValue(a, col) {
+  switch (col) {
+    case 'week':    return weekLabelForDate(a.end);
+    case 'percent':  return Number(a.percent) || 0;
+    case 'status':   return actionStatus(a);
+    case 'start':
+    case 'end':      return a[col] || '';
+    default:         return (a[col] || '').toString().toLowerCase();
+  }
+}
+
+function renderActionEditor(p) {
+  const tbody = document.getElementById('action-tbody');
+  if (!tbody) return;
+
+  // Pair each action with its real index in p.actions, so edits/deletes
+  // always target the right item even after filtering/sorting the view.
+  let rows = p.actions.map((a, i) => ({ a, i }));
+
+  // Filters
+  const f = actionTableState.filters;
+  if (f.name)     rows = rows.filter(r => (r.a.name||'').toLowerCase().includes(f.name.toLowerCase()));
+  if (f.owner)    rows = rows.filter(r => (r.a.owner||'').toLowerCase().includes(f.owner.toLowerCase()));
+  if (f.bucket)   rows = rows.filter(r => r.a.bucket === f.bucket);
+  if (f.priority) rows = rows.filter(r => r.a.priority === f.priority);
+  if (f.start)    rows = rows.filter(r => r.a.start === f.start);
+  if (f.end)      rows = rows.filter(r => r.a.end === f.end);
+  if (f.week)     rows = rows.filter(r => weekLabelForDate(r.a.end).toLowerCase().includes(f.week.toLowerCase()));
+  if (f.status)   rows = rows.filter(r => actionStatus(r.a) === f.status);
+  if (f.update)   rows = rows.filter(r => (r.a.update||'').toLowerCase().includes(f.update.toLowerCase()));
+
+  // Sort
+  if (actionTableState.sortCol) {
+    const dir = actionTableState.sortDir === 'desc' ? -1 : 1;
+    const col = actionTableState.sortCol;
+    rows = rows.slice().sort((r1, r2) => {
+      const v1 = actionSortValue(r1.a, col), v2 = actionSortValue(r2.a, col);
+      if (v1 < v2) return -1 * dir;
+      if (v1 > v2) return 1 * dir;
+      return 0;
+    });
+  }
+
+  if (p.actions.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:30px; color:var(--text-faint); font-style:italic;">No action items yet. Click "+ Add action" to start tracking.</td></tr>`;
+    return;
+  }
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:30px; color:var(--text-faint); font-style:italic;">No action items match the current filters.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(({ a: t, i }) => {
+    const status = actionStatus(t);
+    const cls = status.toLowerCase().replace(' ', '-');
+    return `
+      <tr>
+        <td><input type="text" value="${esc(t.name)}"   oninput="updateAction(${i},'name',this.value)"></td>
+        <td><input type="text" value="${esc(t.owner)}"  oninput="updateAction(${i},'owner',this.value)"></td>
+        <td><select onchange="updateAction(${i},'bucket',this.value)">${BUCKETS.map(b=>`<option value="${b}" ${b===t.bucket?'selected':''}>${b}</option>`).join('')}</select></td>
+        <td><select onchange="updateAction(${i},'priority',this.value)">${PRIORITIES.map(pr=>`<option value="${pr}" ${pr===t.priority?'selected':''}>${pr}</option>`).join('')}</select></td>
+        <td><input type="date"   value="${t.start}"   oninput="updateAction(${i},'start',this.value)"></td>
+        <td><input type="date"   value="${t.end}"     oninput="updateAction(${i},'end',this.value)"></td>
+        <td style="text-align:center; font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--text-faint);">${weekLabelForDate(t.end)}</td>
+        <td><input type="number" value="${t.percent}" min="0" max="100" step="5" oninput="updateAction(${i},'percent',this.value)"></td>
+        <td><span class="status-badge ${cls}">${status}</span></td>
+        <td><input type="text" value="${esc(t.update || '')}" placeholder="Notes / progress…" oninput="updateAction(${i},'update',this.value)"></td>
+        <td><button class="btn btn-icon" onclick="deleteAction(${i})" title="Delete">×</button></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ===================== ACTIONS =====================
+function currentProject() {
+  return store.projects.find(p => p.id === view.currentProjectId);
+}
+function updateAction(i, field, value) {
+  const p = currentProject(); if (!p) return;
+  if (field === 'percent') value = Math.max(0, Math.min(100, Number(value) || 0));
+  p.actions[i][field] = value;
+  saveStore();
+  renderKPIs(p);
+  renderStatusChart(p);
+  renderPriorityChart(p);
+  renderBucketChart(p);
+  renderLateList(p);
+  renderUpcomingList(p);
+  // Skip the full table re-render for continuous free-text typing (it would
+  // otherwise yank focus out of the input on every keystroke). These fields
+  // don't affect the Status or Target Week columns, so nothing visible is
+  // stale while typing — sort/filter order just catches up on the next render.
+  if (['name', 'owner', 'update'].includes(field)) return;
+  renderActionEditor(p);
+}
+function deleteAction(i) {
+  const p = currentProject(); if (!p) return;
+  const taskName = p.actions[i]?.name || 'this action';
+  showConfirm({
+    title:   'Delete action item?',
+    message: `"${taskName}" will be removed.`,
+    confirmText: 'Delete',
+    danger:  true,
+    onConfirm: () => {
+      p.actions.splice(i, 1);
+      saveStore();
+      renderProjectDetail();
+    }
+  });
+}
+function addAction() {
+  const p = currentProject(); if (!p) return;
+  const today = new Date();
+  const twoWeeks = new Date(today.getTime() + 14 * 86400000);
+  p.actions.push({
+    name: 'New action item', owner: '', bucket: 'Process', priority: 'Medium',
+    start: today.toISOString().slice(0,10), end: twoWeeks.toISOString().slice(0,10), percent: 0, update: ''
+  });
+  saveStore();
+  renderProjectDetail();
+}
+// Export action items into the uploaded Excel file's Gantt sheet.
+// Reads the stored .xlsx (if present), writes current dashboard data into
+// the task rows by section, saves both back to IndexedDB AND as a download.
+// If no Excel is uploaded yet, falls back to a CSV download (with a notice).
+async function exportToExcel() {
+  const p = currentProject(); if (!p) return;
+
+  const EXPORT_API = 'https://gantt-export-api.vercel.app/api/export';
+
+  // Build payload from dashboard actions
+  const actions = (p.actions || []).map(a => ({
+    name:    a.name    || '',
+    owner:   a.owner   || '',
+    start:   a.start   || '',
+    end:     a.end     || '',
+    percent: a.percent || 0,
+    update:  a.update  || '',
+    bucket:  a.bucket  || '',
+    priority: a.priority || ''
+  }));
+
+  const payload = {
+    project: {
+      plant:  p.plant  || '',
+      line:   p.line   || '',
+      name:   p.name   || '',
+      leader: p.leader || ''
+    },
+    actions
+  };
+
+  // Show loading state on button
+  const btn = document.querySelector('button[onclick="exportToExcel()"]');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = '⏳ Generating...'; btn.disabled = true; }
+
+  try {
+    const resp = await fetch(EXPORT_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Server error ${resp.status}: ${errText}`);
+    }
+
+    const blob = await resp.blob();
+    const fname = `${p.plant}_${p.leader}_${p.name}.xlsx`.replace(/[^A-Za-z0-9._-]/g, '_');
+
+    // Save to IndexedDB so "Open Excel" gets the latest version
+    try {
+      const fakeFile = new File([blob], fname, { type: blob.type });
+      await saveEvidenceFile(p.id, '__excel__', fakeFile);
+      p.excelFile = { name: fname, size: blob.size, type: blob.type, uploadedAt: new Date().toISOString() };
+      saveStore();
+    } catch (e) { console.warn('IndexedDB save failed:', e); }
+
+    // Download
+    const url = URL.createObjectURL(blob);
+    const dlA = document.createElement('a');
+    dlA.href = url; dlA.download = fname;
+    document.body.appendChild(dlA); dlA.click(); document.body.removeChild(dlA);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    alert(`✓ Exported ${actions.length} action(s) to Excel with full formatting!`);
+
+  } catch (e) {
+    alert('Export failed: ' + e.message + '\n\nPastikan internet tersambung dan coba lagi.');
+    console.error('Export error:', e);
+  } finally {
+    if (btn) { btn.textContent = origText; btn.disabled = false; }
+  }
+}
+
+// CSV fallback (used if no Excel uploaded)
+function exportActionsCSV(p) {
+  p = p || currentProject();
+  if (!p) return;
+  const headers = ['Task','Owner','Category','Priority','Start','End','Target Week','% Done','Status','Project Update'];
+  const rows = p.actions.map(t => [t.name,t.owner,t.bucket,t.priority,t.start,t.end,weekLabelForDate(t.end),t.percent,actionStatus(t),t.update || '']);
+  const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  downloadBlob(csv, `${p.plant}_${p.leader}_${p.name}_actions.csv`.replace(/[^A-Za-z0-9._-]/g,'_'), 'text/csv');
+}
+// (toggleEvidence removed — checkboxes are now driven by file uploads via uploadEvidence)
+
+// ===================== NAVIGATION =====================
+function goToList() { view.page = 'list'; view.currentProjectId = null; render(); }
+function goToInstructions() { view.page = 'instructions'; render(); }
+function openProject(id) { view.page = 'detail'; view.currentProjectId = id; actionTableState = { sortCol: null, sortDir: 'asc', filters: {} }; render(); }
+function onFilterChange(field, value) { view.filters[field] = value; render(); }
+function onSearchInput(value) {
+  view.search = value;
+  // Don't re-render top to keep focus; just re-render grid
+  const filtered = store.projects.filter(p => {
+    if (view.filters.plant  && p.plant  !== view.filters.plant)  return false;
+    if (view.filters.line   && p.line   !== view.filters.line)   return false;
+    if (view.filters.leader && p.leader !== view.filters.leader) return false;
+    if (view.search) {
+      const s = view.search.toLowerCase();
+      if (!(p.name + ' ' + p.leader + ' ' + p.plant + ' ' + p.line).toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
+  const grid = document.querySelector('.projects-grid');
+  const empty = document.querySelector('.empty-projects');
+  const html = filtered.length === 0
+    ? `<div class="empty-projects"><div class="empty-projects-title">${store.projects.length === 0 ? 'No projects yet' : 'No projects match your filters'}</div><div>${store.projects.length === 0 ? 'Click "+ New Project" to create your first one.' : 'Try clearing filters or adjusting your search.'}</div></div>`
+    : `<div class="projects-grid">${filtered.map(p => projectCardHtml(p)).join('')}</div>`;
+  if (grid) grid.outerHTML = html;
+  else if (empty) empty.outerHTML = html;
+}
+function clearFilters() {
+  view.filters = { plant:'', line:'', leader:'', projectStatus: 'On Progress' };
+  view.search = '';
+  render();
+}
+
+// ===================== NEW PROJECT MODAL =====================
+function openNewProjectModal() {
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="modal-overlay" onclick="if(event.target.id==='modal-overlay')closeModal()">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">New Project</div>
+          <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div id="modal-body">
+          <div class="form-field">
+            <label class="form-label">Plant<span class="req">*</span></label>
+            <select class="form-input" id="np-plant">
+              <option value="">— Select plant —</option>
+              ${PLANTS.map(pl => `<option value="${pl}">${pl}</option>`).join('')}
+            </select>
+            <div class="form-help">Used as the top-level folder in OneDrive.</div>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Line Name<span class="req">*</span></label>
+            <input class="form-input" id="np-line" placeholder="e.g. LA1KN" autocomplete="off">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Project Name<span class="req">*</span></label>
+            <input class="form-input" id="np-name" placeholder="e.g. HMI Flexible Capacity Improvement" autocomplete="off">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Project Leader (PIC)<span class="req">*</span></label>
+            <input class="form-input" id="np-leader" placeholder="e.g. Riky Aditya" autocomplete="off">
+            <div class="form-help">Project folder will be named "<span style="color:var(--text);">Leader - Project Name</span>".</div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+            <button class="btn" onclick="submitNewProject()">Create project</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+  setTimeout(() => document.getElementById('np-plant').focus(), 50);
+}
+function closeModal() {
+  const el = document.getElementById('modal-overlay');
+  if (el) el.remove();
+}
+
+// Reusable in-page confirmation dialog — replaces window.confirm() which is
+// sometimes suppressed by corporate browser policies / IT settings.
+function showConfirm({ title, message, confirmText = 'Confirm', danger = false, onConfirm }) {
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="confirm-overlay" onclick="if(event.target.id==='confirm-overlay')closeConfirm()">
+      <div class="modal" style="max-width:440px;">
+        <div class="modal-header">
+          <div class="modal-title">${esc(title)}</div>
+          <button class="modal-close" onclick="closeConfirm()">×</button>
+        </div>
+        <div style="color:var(--text-dim); line-height:1.55; margin-bottom:18px;">${esc(message)}</div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+          <button class="btn ${danger ? 'btn-danger-solid' : ''}" id="confirm-action-btn">${esc(confirmText)}</button>
+        </div>
+      </div>
+    </div>
+  `);
+  document.getElementById('confirm-action-btn').onclick = () => {
+    closeConfirm();
+    if (typeof onConfirm === 'function') onConfirm();
+  };
+}
+function closeConfirm() {
+  const el = document.getElementById('confirm-overlay');
+  if (el) el.remove();
+}
+
+// ===================== PROJECT EXCEL FILE =====================
+// The Excel file is stored in IndexedDB under a reserved key (__excel__),
+// reusing the same storage helpers as evidence files.
+
+// Parse the Gantt sheet of an uploaded .xlsx into action items.
+// Mirrors the template's row layout:
+//   row 5 = column headers (Task / Owner / Start / End / Duration / % Done / Status / Remarks)
+//   rows 7..46 = task area; rows missing a Start date are treated as sections/empty.
+async function extractActionsFromExcel(file) {
+  if (typeof XLSX === 'undefined') {
+    console.warn('SheetJS not loaded — cannot parse Excel.');
+    alert(
+      'The Excel parser library (SheetJS) did not load.\n\n' +
+      'Your file IS saved — the "Open Excel" button works — but the dashboard could not auto-read action items from the Gantt sheet.\n\n' +
+      'Likely cause: the corporate network blocked the CDN. Try:\n' +
+      '  1. Reload the page once (sometimes the script loads on retry)\n' +
+      '  2. Open the dashboard in Microsoft Edge if you were using another browser\n' +
+      '  3. Check the browser console (F12) for the exact blocked URL\n\n' +
+      'You can still add action items manually with "+ Add action".'
+    );
+    return [];
+  }
+  let workbook;
+  try {
+    const ab = await file.arrayBuffer();
+    workbook = XLSX.read(ab, { cellDates: true });
+  } catch (e) {
+    console.warn('Could not read .xlsx:', e);
+    return [];
+  }
+  const sheet = workbook.Sheets['Gantt'] || workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) return [];
+
+  const FIRST = 7, LAST = 80;  // rows 7-80 covers all sections including variable-length ones
+  const get = (col, row) => {
+    const cell = sheet[col + row];
+    return cell ? cell.v : undefined;
+  };
+  const toISO = (d) => {
+    if (d instanceof Date) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    if (typeof d === 'number') {
+      const ms = (d - 25569) * 86400 * 1000;
+      return toISO(new Date(ms));
+    }
+    if (typeof d === 'string') return d.slice(0, 10);
+    return '';
+  };
+
+  const actions = [];
+  for (let row = FIRST; row <= LAST; row++) {
+    const nameRaw   = get('A', row);
+    const owner     = get('B', row);
+    const startVal  = get('C', row);
+    const endVal    = get('D', row);
+    const percentVal = get('F', row);
+    // Template column layout: A=Task, B=Owner, C=Start, D=End, E=Duration(formula),
+    // F=%Done, G=Status(formula), H=Project Update, I+=Gantt weeks
+    // Priority/Category not in Excel — kept as-is from dashboard (merge logic handles it)
+    const updateVal  = get('H', row);
+
+    if (!nameRaw || typeof nameRaw !== 'string') continue;
+    const name = nameRaw.trim();
+    if (!name) continue;
+
+    // Skip section header rows (no start/end date, or name matches section pattern)
+    if (startVal == null || endVal == null) continue;
+    const start = toISO(startVal);
+    const end   = toISO(endVal);
+    if (!start || !end) continue;
+
+    // Skip rows that look like section headers (e.g. "1. PLANNING", "🏁 LINE GO-LIVE")
+    if (/^\d+\./.test(name) || name.includes('🏁') || name.toUpperCase().includes('GO-LIVE')) continue;
+
+    let pct = 0;
+    if (typeof percentVal === 'number') {
+      pct = percentVal <= 1.0001 ? Math.round(percentVal * 100) : Math.round(percentVal);
+    }
+    pct = Math.max(0, Math.min(100, pct));
+
+    const update = (typeof updateVal === 'string') ? updateVal.trim()
+                 : (updateVal != null ? String(updateVal).trim() : '');
+
+    actions.push({
+      name,
+      owner:    (typeof owner === 'string' ? owner.trim() : (owner != null ? String(owner).trim() : '')),
+      bucket:   'Process',   // default; mergeActionsFromExcel will preserve existing dashboard value
+      priority: 'Medium',    // default; mergeActionsFromExcel will preserve existing dashboard value
+      start, end,
+      percent:  pct,
+      update
+    });
+  }
+  return actions;
+}
+
+// Merge Excel actions into the dashboard's current actions:
+//   - Matched by name: update name/owner/dates/% from Excel, KEEP bucket/priority
+//   - New in Excel: added with default bucket/priority
+//   - Existing in dashboard but not in Excel: KEPT (manual entries preserved)
+function mergeActionsFromExcel(currentActions, extractedActions) {
+  const byName = new Map();
+  for (const a of (currentActions || [])) byName.set(a.name.toLowerCase(), a);
+
+  const result = [];
+  const usedKeys = new Set();
+  for (const na of extractedActions) {
+    const key = na.name.toLowerCase();
+    const existing = byName.get(key);
+    if (existing) {
+      result.push({
+        ...na,
+        bucket: existing.bucket,
+        priority: existing.priority,
+        // If the Excel "Project Update" cell is empty, keep whatever the user typed in the dashboard
+        update: na.update || existing.update || ''
+      });
+      usedKeys.add(key);
+    } else {
+      result.push(na);
+    }
+  }
+  for (const a of (currentActions || [])) {
+    if (!usedKeys.has(a.name.toLowerCase())) result.push(a);
+  }
+  return result;
+}
+
+async function uploadExcel(projectId, fileInput) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  try {
+    await saveEvidenceFile(projectId, '__excel__', file);
+  } catch (e) {
+    alert('Could not save the Excel file in the browser.\n\n' + e.message);
+    fileInput.value = '';
+    return;
+  }
+  const p = store.projects.find(x => x.id === projectId);
+  if (!p) return;
+  p.excelFile = {
+    name:       file.name,
+    size:       file.size,
+    type:       file.type,
+    uploadedAt: new Date().toISOString()
+  };
+
+  // Auto-sync action items from the Gantt sheet
+  let extracted = [];
+  try {
+    extracted = await extractActionsFromExcel(file);
+  } catch (e) {
+    console.warn('Excel parse failed:', e);
+  }
+  if (extracted.length > 0) {
+    const before = (p.actions || []).length;
+    p.actions = mergeActionsFromExcel(p.actions || [], extracted);
+    p.lastSyncedAt = new Date().toISOString();
+    p.lastSyncCount = extracted.length;
+    console.log(`Synced ${extracted.length} action(s) from Excel (was ${before}, now ${p.actions.length})`);
+  } else {
+    console.log('No action items extracted from Excel.');
+  }
+
+  saveStore();
+  fileInput.value = '';
+  renderProjectDetail();
+}
+
+async function openExcel(projectId) {
+  try {
+    const rec = await getEvidenceFile(projectId, '__excel__');
+    if (!rec || !rec.blob) { alert('Excel file not found in storage.'); return; }
+    // Use a download link with the original filename so Excel opens via
+    // the desktop app on double-click (more reliable than window.open for .xlsx).
+    const url = URL.createObjectURL(rec.blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = rec.filename || 'project.xlsx';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) { alert('Could not open Excel: ' + e.message); }
+}
+
+function removeExcel(projectId) {
+  showConfirm({
+    title: 'Remove Excel file?',
+    message: 'The Excel will be deleted from this browser. The file in OneDrive (if any) is NOT touched.',
+    confirmText: 'Remove',
+    danger: true,
+    onConfirm: async () => {
+      try { await deleteEvidenceFile(projectId, '__excel__'); } catch (e) { console.error(e); }
+      const p = store.projects.find(x => x.id === projectId);
+      if (!p) return;
+      p.excelFile = null;
+      saveStore();
+      renderProjectDetail();
+    }
+  });
+}
+
+// ===================== EVIDENCE FILE STORAGE (Supabase Storage — synced) =====================
+// Files stored in Google Drive via Vercel serverless proxy (no OAuth popup needed)
+const GDRIVE_API = 'https://gantt-export-api.vercel.app/api/gdrive';
+
+function evidenceStoragePath(projectId, evidenceName) {
+  return `${projectId}/${evidenceName}`;
+}
+
+async function saveEvidenceFile(projectId, evidenceName, file) {
+  // Convert file to base64
+  const b64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const resp = await fetch(GDRIVE_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectId,
+      evidenceName,
+      filename: file.name,
+      contentType: file.type || 'application/octet-stream',
+      fileData: b64
+    })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || 'Upload failed');
+  }
+  return await resp.json();
+}
+
+async function getEvidenceFile(projectId, evidenceName) {
+  const p = store.projects.find(x => x.id === projectId);
+  const url = `${GDRIVE_API}?projectId=${encodeURIComponent(projectId)}&evidenceName=${encodeURIComponent(evidenceName)}`;
+  const resp = await fetch(url);
+  if (!resp.ok) return null;
+  const blob = await resp.blob();
+  const filename = evidenceName === '__excel__'
+    ? (p?.excelFile?.name || 'project.xlsx')
+    : (p?.evidence?.[evidenceName]?.fileName || 'file');
+  return { blob, filename };
+}
+
+async function deleteEvidenceFile(projectId, evidenceName) {
+  try {
+    await fetch(`${GDRIVE_API}?projectId=${encodeURIComponent(projectId)}&evidenceName=${encodeURIComponent(evidenceName)}`, {
+      method: 'DELETE'
+    });
+  } catch(e) { console.warn('deleteEvidenceFile:', e); }
+}
+
+function formatBytes(b) {
+  if (!b) return '0 B';
+  const u = ['B','KB','MB','GB'];
+  const i = Math.min(Math.floor(Math.log(b)/Math.log(1024)), u.length-1);
+  return (b / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + ' ' + u[i];
+}
+
+// ===================== EVIDENCE: upload / view / remove / export =====================
+async function uploadEvidence(projectId, evidenceName, fileInput) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  try {
+    await saveEvidenceFile(projectId, evidenceName, file);
+  } catch (e) {
+    alert('Could not save the file in the browser. It may be too large or your storage is full.\n\n' + e.message);
+    fileInput.value = '';
+    return;
+  }
+  const p = store.projects.find(x => x.id === projectId);
+  if (!p) return;
+  if (!p.evidence[evidenceName]) p.evidence[evidenceName] = {};
+  Object.assign(p.evidence[evidenceName], {
+    done: true,
+    completedAt: new Date().toISOString(),
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: file.type
+  });
+  saveStore();
+  fileInput.value = '';
+  renderProjectDetail();
+}
+
+async function previewEvidenceFile(projectId, evidenceName) {
+  try {
+    const rec = await getEvidenceFile(projectId, evidenceName);
+    if (!rec || !rec.blob) { alert('File not found in storage.'); return; }
+    const url = URL.createObjectURL(rec.blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) { alert('Could not open the file: ' + e.message); }
+}
+
+function removeEvidenceFile(projectId, evidenceName) {
+  showConfirm({
+    title: 'Remove file?',
+    message: 'The uploaded file will be deleted from this browser. The evidence will be marked pending again.',
+    confirmText: 'Remove file',
+    danger: true,
+    onConfirm: async () => {
+      try { await deleteEvidenceFile(projectId, evidenceName); } catch (e) { console.error(e); }
+      const p = store.projects.find(x => x.id === projectId);
+      if (!p) return;
+      if (p.evidence[evidenceName]) {
+        delete p.evidence[evidenceName].fileName;
+        delete p.evidence[evidenceName].fileSize;
+        delete p.evidence[evidenceName].fileType;
+        p.evidence[evidenceName].done = false;
+        p.evidence[evidenceName].completedAt = null;
+      }
+      saveStore();
+      renderProjectDetail();
+    }
+  });
+}
+
+// Export all evidence files for a project to a user-picked folder.
+// Uses File System Access API on Chrome/Edge; falls back to a ZIP download.
+async function exportEvidenceFiles(projectId) {
+  const p = store.projects.find(x => x.id === projectId);
+  if (!p) return;
+
+  const files = [];
+  for (const item of EVIDENCE_ITEMS) {
+    const ev = p.evidence[item.name];
+    if (ev && ev.fileName) {
+      const rec = await getEvidenceFile(projectId, item.name);
+      if (rec && rec.blob) {
+        const safe = item.name.replace(/[^A-Za-z0-9_\- ]/g, '_').trim();
+        const ext  = (ev.fileName.split('.').pop() || '').toLowerCase();
+        files.push({ name: `${safe}.${ext}`, blob: rec.blob });
+      }
+    }
+  }
+  if (files.length === 0) {
+    alert('No evidence files to export yet. Upload some files first.');
+    return;
+  }
+
+  // Modern path: write directly to a user-chosen folder
+  if (window.showDirectoryPicker) {
+    try {
+      const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      let ok = 0, failed = [];
+      for (const f of files) {
+        try {
+          const fh = await dirHandle.getFileHandle(f.name, { create: true });
+          const w  = await fh.createWritable();
+          await w.write(f.blob);
+          await w.close();
+          ok++;
+        } catch (e) { failed.push(f.name); console.error(e); }
+      }
+      const msg = failed.length
+        ? `Saved ${ok}/${files.length} files. Failed: ${failed.join(', ')}`
+        : `${ok} file(s) saved to the chosen folder.`;
+      showConfirm({
+        title: 'Export complete',
+        message: msg + '\n\nIf you picked your OneDrive sync folder, they will sync to the cloud automatically.',
+        confirmText: 'OK',
+        onConfirm: () => {}
+      });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      console.warn('Folder picker unavailable, falling back to ZIP:', e);
+    }
+  }
+
+  // Fallback: bundle as a single ZIP download (works in all browsers)
+  if (typeof JSZip === 'undefined') {
+    alert('Your browser does not support direct-to-folder export. Please use Microsoft Edge or Google Chrome.');
+    return;
+  }
+  const zip = new JSZip();
+  files.forEach(f => zip.file(f.name, f.blob));
+  const content = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(content);
+  const a = document.createElement('a');
+  const stem = `${p.plant}_${p.leader}_${p.name}_evidence`.replace(/[^A-Za-z0-9._-]/g, '_');
+  a.href = url;
+  a.download = stem + '.zip';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Also clean up files when a project is deleted
+async function deleteProjectEvidenceFiles(projectId) {
+  try {
+    const items = [...EVIDENCE_ITEMS.map(e => e.name), '__excel__'];
+    for (const name of items) {
+      await deleteEvidenceFile(projectId, name);
+    }
+  } catch(e) { console.warn('deleteProjectEvidenceFiles:', e); }
+}
+function submitNewProject() {
+  const plant  = document.getElementById('np-plant').value.trim();
+  const line   = document.getElementById('np-line').value.trim();
+  const name   = document.getElementById('np-name').value.trim();
+  const leader = document.getElementById('np-leader').value.trim();
+  if (!plant || !line || !name || !leader) {
+    alert('Please fill in all four fields.');
+    return;
+  }
+  const evidence = {};
+  EVIDENCE_ITEMS.forEach(it => { evidence[it.name] = { done: false, completedAt: null }; });
+  const project = {
+    id: uuid(),
+    plant, line, name, leader,
+    createdAt: new Date().toISOString(),
+    excelFile: null,        // { name, size, type, uploadedAt } — blob is in IndexedDB
+    actions: [],
+    evidence
+  };
+  store.projects.unshift(project);
+  saveStore();
+  showCreationSuccess(project);
+}
+
+function showCreationSuccess(p) {
+  const folderUrl = buildProjectFolderUrl(p.plant, p.leader, p.name);
+  const plantUrl  = buildPlantFolderUrl(p.plant);
+  const folderPath = `${p.plant} / ${p.leader} - ${p.name}`;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="success-box">
+      <div class="success-title">✓ Project created</div>
+      <div style="color:var(--text-dim); font-size:13px;">Saved in this dashboard. Now create the matching folder in OneDrive.</div>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Folder to create in 02. PROJECT</label>
+      <div class="path-box">
+        <span class="path-box-icon">📁</span>
+        <span>${esc(folderPath)}</span>
+      </div>
+    </div>
+    <ol class="next-steps">
+      <li>Click <b style="color:var(--text);">Open Project Folder</b> below to jump into <code style="color:var(--primary);">02. PROJECT / ${esc(p.plant)}</code> in OneDrive.</li>
+      <li>Create a new folder there called <code style="color:var(--primary);">${esc(p.leader)} - ${esc(p.name)}</code> (New → Folder).</li>
+      <li>Click <b style="color:var(--text);">Download Excel template</b> and drop the file into that folder.</li>
+      <li>After filling in the Excel, come back to the project and click <b style="color:var(--text);">📊 Upload Excel</b> to attach it. From then on, <b style="color:var(--primary-dark);">📊 Open Excel</b> gives you the file in one click.</li>
+    </ol>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="downloadTemplate('${p.id}')">⬇ Download Excel template</button>
+      <button class="btn" onclick="openSharePoint('${esc(plantUrl)}')">Open Project Folder ↗</button>
+      <button class="btn btn-outline" onclick="closeModal(); openProject('${p.id}');">Go to project</button>
+    </div>
+  `;
+  renderTopBar();
+}
+
+// ===================== UTILITY: OPEN SP, DOWNLOAD, ETC. =====================
+function openSharePoint(url) {
+  window.open(url, '_blank', 'noopener');
+}
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Decode embedded base64 → Blob for the .xlsx template
+function base64ToBlob(b64, mimeType) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType });
+}
+
+// Download a copy of the embedded Project_Management_Gantt_Template.xlsx,
+// renamed after the current project so it's ready to drop into OneDrive.
+function downloadTemplate(projectId) {
+  const p = store.projects.find(x => x.id === projectId);
+  if (!p) return;
+  const blob = base64ToBlob(EXCEL_TEMPLATE_B64,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${p.plant}_${p.leader}_${p.name}.xlsx`.replace(/[^A-Za-z0-9._-]/g, '_');
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportStore() {
+  const json = JSON.stringify(store, null, 2);
+  downloadBlob(json, `method-batam-projects_${new Date().toISOString().slice(0,10)}.json`, 'application/json');
+}
+function importStore(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.projects || !Array.isArray(data.projects)) throw new Error('Invalid file');
+      showConfirm({
+        title:   'Import projects?',
+        message: `${data.projects.length} project(s) will REPLACE all data currently in this dashboard. Tip: Export a backup first.`,
+        confirmText: 'Import & replace',
+        danger:  true,
+        onConfirm: () => { store = data; saveStore(); render(); }
+      });
+    } catch (err) {
+      alert('Could not read that file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ===================== PROJECT CLOSING WORKFLOW =====================
+function showCloseRequirements(id) {
+  const p = store.projects.find(x => x.id === id);
+  if (!p) return;
+  const actions = p.actions || [];
+  const incomplete = actions.filter(a => (Number(a.percent) || 0) < 100);
+  const ev = p.evidence || {};
+  const missing = EVIDENCE_ITEMS.filter(e => e.required && !ev[e.name]?.done);
+
+  let msg = 'This project cannot be submitted for closing yet:\n\n';
+  if (actions.length === 0) {
+    msg += '• No action items exist yet.\n';
+  } else if (incomplete.length) {
+    msg += `• ${incomplete.length} action item(s) are not 100% complete:\n`;
+    msg += incomplete.slice(0, 5).map(a => `   – ${a.name || '(unnamed)'} (${a.percent || 0}%)`).join('\n');
+    if (incomplete.length > 5) msg += `\n   …and ${incomplete.length - 5} more`;
+    msg += '\n';
+  }
+  if (missing.length) {
+    msg += `\n• ${missing.length} mandatory evidence item(s) missing a file:\n`;
+    msg += missing.map(e => `   – ${e.name}`).join('\n');
+  }
+  showConfirm({
+    title: 'Cannot submit for closing',
+    message: msg,
+    confirmText: 'OK',
+    onConfirm: () => {}
+  });
+}
+
+function submitCloseRequest(id) {
+  const p = store.projects.find(x => x.id === id);
+  if (!p) return;
+  if (!canSubmitClose(p)) { showCloseRequirements(id); return; }
+  showConfirm({
+    title: 'Submit close request?',
+    message: 'All actions are 100% complete and mandatory evidence is uploaded. This will mark the project as "Pending Closure" — an Admin will need to approve before it is fully closed.',
+    confirmText: 'Submit for closing',
+    onConfirm: () => {
+      p.closure = {
+        status: 'pending',
+        submittedAt: new Date().toISOString(),
+        submittedBy: currentRole() || 'user'
+      };
+      saveStore();
+      render();
+    }
+  });
+}
+
+function approveClosing(id) {
+  const p = store.projects.find(x => x.id === id);
+  if (!p || !isAdmin()) return;
+  showConfirm({
+    title: 'Approve project closing?',
+    message: `"${p.name}" will be marked CLOSED. The dashboard will show this project in green and it will be hidden from the default "On Progress" view.`,
+    confirmText: 'Approve & close',
+    onConfirm: () => {
+      p.closure = {
+        ...p.closure,
+        status: 'closed',
+        closedAt: new Date().toISOString(),
+        closedBy: currentRole() || 'admin'
+      };
+      saveStore();
+      render();
+    }
+  });
+}
+
+function rejectClosing(id) {
+  const p = store.projects.find(x => x.id === id);
+  if (!p || !isAdmin()) return;
+  showConfirm({
+    title: 'Reject close request?',
+    message: 'The project will return to "On Progress" status. The submitter can fix any gaps and resubmit later.',
+    confirmText: 'Reject request',
+    danger: true,
+    onConfirm: () => {
+      p.closure = null;
+      saveStore();
+      render();
+    }
+  });
+}
+
+// ===================== GENERATE REPORT =====================
+function generateReport(id) {
+  const p = store.projects.find(x => x.id === id);
+  if (!p) return;
+  const k = projectKPIs(p);
+  const e = evidenceProgress(p);
+  const actions = p.actions || [];
+
+  // Open action items, sorted by priority severity then by most overdue/soonest due
+  const priorityRank = { Urgent: 0, Important: 1, Medium: 2, Low: 3 };
+  const openActions = actions
+    .filter(a => (Number(a.percent) || 0) < 100)
+    .sort((a, b) => (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9));
+
+  const majorOpen = openActions.slice(0, 8);
+
+  // Issues extracted from Project Update comments (non-empty, on incomplete or late items)
+  const today = new Date(); today.setHours(0,0,0,0);
+  const issues = actions
+    .filter(a => (a.update || '').trim().length > 0 && (Number(a.percent) || 0) < 100)
+    .map(a => ({ ...a, isLate: new Date(a.end) < today }))
+    .sort((a, b) => (b.isLate - a.isLate))
+    .slice(0, 10);
+
+  // Suggested next actions — rule-based insight
+  const suggestions = [];
+  if (k.counts.Late > 0) {
+    suggestions.push(`Prioritize the ${k.counts.Late} late action(s) — escalate owners and confirm revised dates.`);
+  }
+  const urgentOpen = openActions.filter(a => a.priority === 'Urgent');
+  if (urgentOpen.length) {
+    suggestions.push(`${urgentOpen.length} Urgent-priority item(s) remain open — these should be the team's immediate focus.`);
+  }
+  if (e.pctMandatory < 1) {
+    const missing = EVIDENCE_ITEMS.filter(it => it.required && !(p.evidence||{})[it.name]?.done);
+    suggestions.push(`Upload the remaining mandatory evidence (${missing.map(m=>m.name).join(', ')}) to keep the project closure-ready.`);
+  }
+  if (k.counts['Not Started'] > 0) {
+    suggestions.push(`${k.counts['Not Started']} action(s) haven't started — confirm owners and target weeks are realistic.`);
+  }
+  if (k.completion >= 100 && e.pctMandatory >= 1 && projectStatus(p) !== 'closed' && projectStatus(p) !== 'pending-closure') {
+    suggestions.push('All actions complete and mandatory evidence uploaded — this project is ready to submit for closing.');
+  }
+  if (suggestions.length === 0) suggestions.push('No major blockers detected — project is tracking well.');
+
+  const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const html = `
+    <div class="report-doc">
+      <div class="report-header">
+        <div>
+          <div class="report-eyebrow">Project Status Report</div>
+          <div class="report-title">${esc(p.name)}</div>
+          <div class="report-meta">${esc(p.plant)} / ${esc(p.line)} · PIC ${esc(p.leader)} · Generated ${todayStr}</div>
+        </div>
+        <div class="report-status-pill ${projectStatus(p)}">${esc(projectStatusLabel(p))}</div>
+      </div>
+
+      <div class="report-kpis">
+        <div class="report-kpi"><div class="report-kpi-num">${k.total}</div><div class="report-kpi-label">Total Actions</div></div>
+        <div class="report-kpi"><div class="report-kpi-num" style="color:var(--text-faint)">${k.counts['Not Started']}</div><div class="report-kpi-label">Open</div></div>
+        <div class="report-kpi"><div class="report-kpi-num" style="color:var(--in-progress)">${k.counts['In Progress']}</div><div class="report-kpi-label">In Progress</div></div>
+        <div class="report-kpi"><div class="report-kpi-num" style="color:var(--completed)">${k.counts['Completed']}</div><div class="report-kpi-label">Completed</div></div>
+        <div class="report-kpi"><div class="report-kpi-num" style="color:var(--late)">${k.counts['Late']}</div><div class="report-kpi-label">Late</div></div>
+        <div class="report-kpi"><div class="report-kpi-num" style="color:var(--primary-dark)">${k.completion.toFixed(0)}%</div><div class="report-kpi-label">Completion</div></div>
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">🎯 Major Open Actions (by priority)</div>
+        ${majorOpen.length === 0 ? '<div class="report-empty">No open actions — all items complete.</div>' : `
+          <table class="report-table">
+            <thead><tr><th>Task</th><th>Owner</th><th>Priority</th><th>% Done</th><th>End</th></tr></thead>
+            <tbody>
+              ${majorOpen.map(a => `
+                <tr>
+                  <td>${esc(a.name || '—')}</td>
+                  <td>${esc(a.owner || '—')}</td>
+                  <td><span class="report-priority-chip pr-${(a.priority||'medium').toLowerCase()}">${esc(a.priority || 'Medium')}</span></td>
+                  <td>${a.percent || 0}%</td>
+                  <td>${a.end ? fmtDate(a.end) : '—'}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">⚠️ Issues Reported (from Project Update comments)</div>
+        ${issues.length === 0 ? '<div class="report-empty">No issues flagged in open action comments.</div>' : `
+          <ul class="report-issue-list">
+            ${issues.map(a => `
+              <li>
+                <strong>${esc(a.name || 'Unnamed task')}</strong>${a.isLate ? ' <span class="report-late-tag">LATE</span>' : ''}
+                — ${esc(a.update)}
+              </li>`).join('')}
+          </ul>
+        `}
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">💡 Suggested Next Actions</div>
+        <ul class="report-suggestion-list">
+          ${suggestions.map(s => `<li>${esc(s)}</li>`).join('')}
+        </ul>
+      </div>
+
+      <div class="report-section">
+        <div class="report-section-title">📁 Evidence Status</div>
+        <div class="report-evidence-row">
+          <span>Mandatory: <strong>${e.mandatory.done}/${e.mandatory.total}</strong></span>
+          <span>Optional: <strong>${e.optional.done}/${e.optional.total}</strong></span>
+          <span>Total: <strong>${e.total.done}/${e.total.total}</strong></span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="report-overlay" onclick="if(event.target.id==='report-overlay')closeReportModal()">
+      <div class="modal report-modal">
+        <div class="modal-header">
+          <div class="modal-title">📋 Project Report — One-Page Summary</div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-ghost btn-sm" onclick="printReport()">🖨️ Print / Save PDF</button>
+            <button class="modal-close" onclick="closeReportModal()">×</button>
+          </div>
+        </div>
+        <div id="report-body">${html}</div>
+      </div>
+    </div>
+  `);
+}
+function closeReportModal() {
+  const el = document.getElementById('report-overlay');
+  if (el) el.remove();
+}
+function printReport() {
+  const content = document.getElementById('report-body').innerHTML;
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html><head><title>Project Report</title>
+    <style>
+      body { font-family: -apple-system, Segoe UI, Arial, sans-serif; padding: 32px; color: #1a1a1a; }
+      .report-header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #3DCD58; padding-bottom:14px; margin-bottom:18px; }
+      .report-eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#888; }
+      .report-title { font-size:22px; font-weight:700; margin-top:2px; }
+      .report-meta { font-size:12px; color:#666; margin-top:4px; }
+      .report-status-pill { padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600; background:#eee; }
+      .report-kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:22px; }
+      .report-kpi { text-align:center; border:1px solid #ddd; border-radius:8px; padding:10px 4px; }
+      .report-kpi-num { font-size:20px; font-weight:700; }
+      .report-kpi-label { font-size:10px; text-transform:uppercase; color:#888; margin-top:2px; }
+      .report-section { margin-bottom:20px; }
+      .report-section-title { font-size:14px; font-weight:700; margin-bottom:8px; }
+      .report-table { width:100%; border-collapse:collapse; font-size:12px; }
+      .report-table th, .report-table td { border:1px solid #ddd; padding:6px 8px; text-align:left; }
+      .report-table th { background:#f5f5f5; }
+      .report-priority-chip { padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; background:#eee; }
+      .report-issue-list, .report-suggestion-list { padding-left:18px; font-size:13px; line-height:1.7; }
+      .report-late-tag { background:#E03131; color:#fff; font-size:9px; padding:1px 6px; border-radius:8px; }
+      .report-empty { color:#999; font-size:13px; font-style:italic; }
+      .report-evidence-row { display:flex; gap:24px; font-size:13px; }
+      @media print { body { padding:0; } }
+    </style>
+    </head><body>${content}</body></html>
+  `);
+  w.document.close();
+  setTimeout(() => w.print(), 300);
+}
+
+function deleteProject(id) {
+  const p = store.projects.find(x => x.id === id);
+  if (!p) return;
+  showConfirm({
+    title:   'Delete project?',
+    message: `"${p.name}" will be removed from this dashboard. Files already in OneDrive are NOT touched.`,
+    confirmText: 'Delete project',
+    danger:  true,
+    onConfirm: () => {
+      deleteProjectEvidenceFiles(id).catch(console.error);
+      store.projects = store.projects.filter(x => x.id !== id);
+      saveStore();
+      goToList();
+    }
+  });
+}
+
+// ===================== MAIN RENDER =====================
+function render() {
+  // Auth gates BEFORE the topbar so guests don't see project counts etc.
+  if (!isLoggedIn()) {
+    renderTopBar();
+    renderLoginView();
+    return;
+  }
+  renderTopBar();
+  if (view.page === 'settings') { view.page = 'list'; }  // settings removed (passwords baked in)
+  if (view.page === 'instructions') return renderInstructionsView();
+  if (view.page === 'detail') return renderProjectDetail();
+  return renderProjectList();
+}
+
+// ===================== AUTH VIEWS =====================
+function renderLoginView() {
+  document.getElementById('main-content').innerHTML = `
+    <div class="auth-shell">
+      <div class="auth-card">
+        <div class="auth-brand">SCHNEIDER ELECTRIC</div>
+        <h1>Method Performance Batam</h1>
+        <div class="auth-tagline">PROJECT HUB</div>
+        <div class="form-field" style="margin-top:24px;">
+          <label class="form-label">Login as</label>
+          <select class="form-input" id="li-role">
+            <option value="admin">Admin</option>
+            <option value="user">User</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Password</label>
+          <input class="form-input" id="li-pw" type="password" placeholder="Enter password" autocomplete="current-password"
+                 onkeydown="if(event.key==='Enter') submitLogin();">
+        </div>
+        <div class="form-actions" style="margin-top:6px;">
+          <button class="btn btn-primary-lg" style="width:100%;" onclick="submitLogin()">Sign in</button>
+        </div>
+        <div class="auth-note">
+          Forgot a password? Sign in as Admin and reset it from <b>Settings</b>.
+        </div>
+      </div>
+    </div>`;
+  setTimeout(() => document.getElementById('li-role').focus(), 50);
+}
+
+async function submitLogin() {
+  const role = document.getElementById('li-role').value;
+  const pw   = document.getElementById('li-pw').value;
+  if (!pw) { alert('Enter the password.'); return; }
+  const hash = await hashPassword(role, pw);
+  const expected = role === 'admin' ? BUILTIN_ADMIN_HASH : BUILTIN_USER_HASH;
+  if (hash !== expected) { alert('Wrong password for ' + role + ' role.'); return; }
+  setSession(role);
+  view.page = 'list';
+  render();
+}
+
+function signOut() {
+  clearSession();
+  view.page = 'list';
+  view.currentProjectId = null;
+  render();
+}
+
+// ===================== WORK INSTRUCTIONS VIEW =====================
+// Step-by-step guides for using the dashboard. Embed-friendly (Scribe / Loom / etc.)
+// Add new entries to INSTRUCTIONS to publish more guides.
+const INSTRUCTIONS = [
+  {
+    title: 'Creating a New Method Project',
+    description: 'Step-by-step guide for adding a new project to the Schneider Electric Method Performance Batam hub.',
+    embedUrl: 'https://scribehow.com/embed/Creating_A_New_Method_Project_In_The_Schneider_Electric__qlVag4VlTAaZb_11ncBGUA',
+    source: 'Scribe'
+  }
+];
+
+function renderInstructionsView() {
+  const cards = INSTRUCTIONS.map((g, i) => `
+    <div class="instruction-card">
+      <div class="instruction-banner">
+        <span class="badge-icon">📃</span>
+        <span>INTERACTIVE WORK INSTRUCTION — ${esc(g.title.toUpperCase())}</span>
+      </div>
+      <div class="instruction-header">
+        <div>
+          <div class="instruction-title">${i + 1}. ${esc(g.title)}</div>
+          ${g.description ? `<div class="instruction-desc">${esc(g.description)}</div>` : ''}
+        </div>
+        <a class="instruction-open" href="${esc(g.embedUrl.replace('/embed/', '/shared/'))}" target="_blank" rel="noopener">Open in ${esc(g.source)} ↗</a>
+      </div>
+      <div class="instruction-frame-wrap">
+        <iframe class="instruction-frame" src="${esc(g.embedUrl)}" allow="fullscreen" loading="lazy"></iframe>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="breadcrumb">
+      <a onclick="goToList()">← All Projects</a>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-current">Work Instructions</span>
+    </div>
+    <div class="list-header" style="margin-bottom:18px;">
+      <div>
+        <div class="list-title">Work Instructions</div>
+        <div style="font-size:13px; color:var(--text-dim); margin-top:4px;">
+          Step-by-step guides for working with the Project Hub. New guides will appear here as they are published.
+        </div>
+      </div>
+    </div>
+    ${INSTRUCTIONS.length > 0 ? cards : `
+      <div class="editor-card" style="text-align:center; padding:60px 20px;">
+        <div style="font-size:14px; color:var(--text-dim);">No work instructions published yet.</div>
+      </div>`}
+  `;
+}
+
+initApp();
+</script>
+</body>
+</html>
