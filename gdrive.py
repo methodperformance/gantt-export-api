@@ -143,8 +143,8 @@ class handler(BaseHTTPRequestHandler):
             folder_id = find_or_create_folder(project_id, GDRIVE_FOLDER_ID)
             safe = evidence_name.replace(' ', '_').replace('/', '_')
             files = find_file(safe, folder_id)
-                import sys
-                print(f"DEBUG: safe={safe}, folder_id={folder_id}, files_count={len(files)}", file=sys.stderr)
+            import sys
+            print(f"DEBUG: safe={safe}, folder_id={folder_id}, files_count={len(files)}", file=sys.stderr)
 
             if not files:
                 self._json(404, {'error': 'File not found'})
