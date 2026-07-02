@@ -81,7 +81,7 @@ def drive_request(method, url, headers=None, data=None):
 
 def find_or_create_folder(name, parent_id):
     q = urllib.parse.quote(f"name='{name}' and '{parent_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false")
-    status, body, _ = drive_request('GET', f'https://www.googleapis.com/drive/v3/files?q={q}&fields=files(id)')
+    status, body, _ = drive_request('GET', f'https://www.googleapis.com/drive/v3/files?q={q}&fields=files(id)&orderBy=createdTime')
     files = json.loads(body).get('files', [])
     if files: return files[0]['id']
     meta = json.dumps({'name': name, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [parent_id]}).encode()
