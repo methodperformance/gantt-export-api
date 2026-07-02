@@ -100,7 +100,7 @@ def find_file(name_prefix, folder_id):
 
 def upload_file(filename, content_type, data_bytes, folder_id):
     # Delete existing file with same prefix
-    prefix = filename.split('_')[0] if '_' in filename else filename[:10]
+    prefix = '_'.join(filename.split('_')[:2]) if filename.count('_') >= 2 else filename
     existing = find_file(prefix, folder_id)
     for f in existing:
         drive_request('DELETE', f"https://www.googleapis.com/drive/v3/files/{f['id']}")
@@ -143,6 +143,8 @@ class handler(BaseHTTPRequestHandler):
             folder_id = find_or_create_folder(project_id, GDRIVE_FOLDER_ID)
             safe = evidence_name.replace(' ', '_').replace('/', '_')
             files = find_file(safe, folder_id)
+                import sys
+                print(f"DEBUG: safe={safe}, folder_id={folder_id}, files_count={len(files)}", file=sys.stderr)
 
             if not files:
                 self._json(404, {'error': 'File not found'})
