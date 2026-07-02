@@ -90,9 +90,13 @@ def find_or_create_folder(name, parent_id):
     return json.loads(body)['id']
 
 def find_file(name_prefix, folder_id):
-    q = urllib.parse.quote(f"name contains '{name_prefix}' and '{folder_id}' in parents and trashed=false")
-    status, body, _ = drive_request('GET', f'https://www.googleapis.com/drive/v3/files?q={q}&fields=files(id,name,mimeType)')
-    return json.loads(body).get('files', [])
+    # Search more broadly — list all files in folder then filter
+    q = urllib.parse.quote(f"'{folder_id}' in parents and trashed=false")
+    status, body, _ = drive_request('GET', f'https://www.googleapis.com/drive/v3/files?q={q}&fields=files(id,name,mimeType)&pageSize=100')
+    all_files = json.loads(body).get('files', [])
+    # Filter by prefix match (case-insensitive)
+    prefix_lower = name_prefix.lower()
+    return [f for f in all_files if f['name'].lower().startswith(prefix_lower)]
 
 def upload_file(filename, content_type, data_bytes, folder_id):
     # Delete existing file with same prefix
